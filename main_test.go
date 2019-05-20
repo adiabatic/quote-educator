@@ -18,6 +18,7 @@ func TestStrings(t *testing.T) {
 		{"hello", "hello"},
 		{"I like \"scare quotes\".", "I like “scare quotes”."},
 		{"I like \"American scare quotes.\"", "I like “American scare quotes.”"},
+		{`"Who?" "He." "Whom?" "Him."`, `“Who?” “He.” “Whom?” “Him.”`},
 	}
 
 	for _, row := range rows {
