@@ -2,12 +2,79 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"log"
 	"os"
 	"strings"
 	"unicode"
 )
+
+type state struct {
+	r *bufio.Reader
+	w *bufio.Writer
+
+	readN, writtenN int64 // byte counts
+}
+
+type callback func(s state) (next callback, err error)
+
+// TODO: reduce the massive amount of redundant copy/pasted code with inDoubleQuotes
+func initial(s state) (callback, error) {
+	r, n, err := s.r.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	s.readN += int64(n)
+	if r == unicode.ReplacementChar { // U+FFFD
+		return nil, errors.New("something got replaced") // TODO: improve this error
+	}
+
+	if r == '"' {
+		n, err := s.w.WriteRune('“')
+		if err != nil {
+			return nil, err
+		}
+		s.writtenN += int64(n)
+		return inDoubleQuotes, nil
+	}
+
+	n, err = s.w.WriteRune(r)
+	if err != nil {
+		return nil, err
+	}
+	s.writtenN += int64(n)
+	return initial, nil
+}
+
+func inDoubleQuotes(s state) (next callback, err error) {
+	r, n, err := s.r.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	s.readN += int64(n)
+	if r == unicode.ReplacementChar { // U+FFFD
+		return nil, errors.New("something got replaced") // TODO: improve this error
+	}
+
+	if r == '"' {
+		n, err := s.w.WriteRune('”')
+		if err != nil {
+			return nil, err
+		}
+		s.writtenN += int64(n)
+		return initial, nil
+	}
+
+	n, err = s.w.WriteRune(r)
+	if err != nil {
+		return nil, err
+	}
+	s.writtenN += int64(n)
+
+	return inDoubleQuotes, nil
+
+}
 
 // EducateString is a convenience function for running Educate on strings.
 func EducateString(s string) (string, error) {
@@ -27,9 +94,6 @@ func EducateString(s string) (string, error) {
 // Blindly copies the interface of io.Copy without deeply considering why it has the return values it has.
 func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 
-	nextDoubleQuoteShouldBeOpening := true
-	nextSingleQuoteShouldBeOpening := true
-
 	inBuf := bufio.NewReader(in)
 	outBuf := bufio.NewWriter(out)
 	defer func() {
@@ -39,47 +103,17 @@ func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 		}
 	}()
 
-	var r rune
-	var N int
+	var s state
+	s.r = inBuf
+	s.w = outBuf
+
+	f := initial
 
 	for {
-		r = 0
-		N = 0
-
-		r, N, err = inBuf.ReadRune()
+		f, err = f(s)
 		if err != nil {
-			return written, err
+			return s.writtenN, err
 		}
-		if r == unicode.ReplacementChar { // U+FFFD
-			return written, err
-		}
-
-		N = 0
-
-		// NB: this is all kinds of broken and handles lots of things wrongly
-		if r == '"' {
-			if nextDoubleQuoteShouldBeOpening {
-				r = '“'
-			} else {
-				r = '”'
-			}
-			nextDoubleQuoteShouldBeOpening = !nextDoubleQuoteShouldBeOpening
-		} else if r == '\'' {
-			if nextSingleQuoteShouldBeOpening {
-				r = '‘'
-			} else {
-				r = '’'
-			}
-			nextSingleQuoteShouldBeOpening = !nextSingleQuoteShouldBeOpening
-		}
-
-		// end transformation
-
-		N, err = outBuf.WriteRune(r)
-		if err != nil {
-			return written + int64(N), err
-		}
-		written += int64(N)
 	}
 }
 

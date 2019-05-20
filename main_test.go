@@ -14,6 +14,7 @@ type Row struct {
 func TestStrings(t *testing.T) {
 	rows := []Row{
 		{"", ""},
+		{" ", " "},
 		{"hello", "hello"},
 		{"I like \"scare quotes\".", "I like “scare quotes”."},
 		{"I like \"American scare quotes.\"", "I like “American scare quotes.”"},
