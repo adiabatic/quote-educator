@@ -30,29 +30,36 @@ func (s *state) ReadRune() (rune, int, error) {
 	return r, n, nil
 }
 
+func (s *state) WriteRune(r rune) (size int, err error) {
+	size, err = s.w.WriteRune(r)
+	if err != nil {
+		return
+	}
+	s.writtenN += int64(size)
+	return
+}
+
 type callback func(s state) (next callback, err error)
 
 // TODO: reduce the massive amount of redundant copy/pasted code with inDoubleQuotes
 func initial(s state) (callback, error) {
-	r, n, err := s.ReadRune()
+	r, _, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
 
+	next := initial
+
 	if r == '"' {
-		n, err := s.w.WriteRune('“')
-		if err != nil {
-			return nil, err
-		}
-		s.writtenN += int64(n)
-		return inDoubleQuotes, nil
+		r = '“'
+		next = inDoubleQuotes
 	}
-	n, err = s.w.WriteRune(r)
+
+	_, err = s.WriteRune(r)
 	if err != nil {
 		return nil, err
 	}
-	s.writtenN += int64(n)
-	return initial, nil
+	return next, nil
 }
 
 func inDoubleQuotes(s state) (next callback, err error) {
