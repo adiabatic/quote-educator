@@ -106,6 +106,7 @@ func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 	var s state
 	s.r = inBuf
 	s.w = outBuf
+	// leave readN and writtenN at 0 each for obvious reasons
 
 	f := initial
 
