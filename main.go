@@ -24,7 +24,7 @@ func EducateString(s string) (string, error) {
 
 // Educate curls quotes from in and writes them to out.
 //
-// Blindly copies the interface of io.Copy.
+// Blindly copies the interface of io.Copy without deeply considering why it has the return values it has.
 func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 
 	nextDoubleQuoteShouldBeOpening := true
@@ -38,8 +38,6 @@ func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 			log.Println(err)
 		}
 	}()
-
-	// defer outBuf.Flush()?
 
 	var r rune
 	var N int
