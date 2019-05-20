@@ -42,13 +42,13 @@ func (s *state) WriteRune(r rune) (size int, err error) {
 type callback func(s state) (next callback, err error)
 
 // TODO: reduce the massive amount of redundant copy/pasted code with inDoubleQuotes
-func initial(s state) (callback, error) {
+func initial(s state) (next callback, err error) {
 	r, _, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
 
-	next := initial
+	next = initial
 
 	if r == '"' {
 		r = '“'
