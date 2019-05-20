@@ -63,31 +63,23 @@ func initial(s state) (next callback, err error) {
 }
 
 func inDoubleQuotes(s state) (next callback, err error) {
-	r, n, err := s.r.ReadRune()
+	r, _, err := s.ReadRune()
 	if err != nil {
 		return nil, err
 	}
-	s.readN += int64(n)
-	if r == unicode.ReplacementChar { // U+FFFD
-		return nil, errors.New("something got replaced") // TODO: improve this error
-	}
+
+	next = inDoubleQuotes
 
 	if r == '"' {
-		n, err := s.w.WriteRune('”')
-		if err != nil {
-			return nil, err
-		}
-		s.writtenN += int64(n)
-		return initial, nil
+		r = '”'
+		next = initial
 	}
 
-	n, err = s.w.WriteRune(r)
+	_, err = s.WriteRune(r)
 	if err != nil {
 		return nil, err
 	}
-	s.writtenN += int64(n)
-
-	return inDoubleQuotes, nil
+	return next, nil
 
 }
 
