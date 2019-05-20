@@ -173,5 +173,9 @@ func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 }
 
 func main() {
-	Educate(os.Stdout, os.Stdin)
+	N, err := Educate(os.Stdout, os.Stdin)
+	if err != nil {
+		log.Printf("%v bytes written before an error occurred: %v", N, err)
+		os.Exit(1)
+	}
 }
