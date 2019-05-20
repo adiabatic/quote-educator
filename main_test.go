@@ -11,9 +11,12 @@ type Row struct {
 	Want string
 }
 
-func TestEverything(t *testing.T) {
+func TestStrings(t *testing.T) {
 	rows := []Row{
+		{"", ""},
 		{"hello", "hello"},
+		{"I like \"scare quotes\".", "I like “scare quotes”."},
+		{"I like \"American scare quotes.\"", "I like “American scare quotes.”"},
 	}
 
 	for _, row := range rows {
