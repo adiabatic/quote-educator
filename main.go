@@ -17,17 +17,26 @@ type state struct {
 	readN, writtenN int64 // byte counts
 }
 
+func (s *state) ReadRune() (rune, int, error) {
+	r, n, err := s.r.ReadRune()
+	if err != nil {
+		return unicode.ReplacementChar, n, err
+	}
+	s.readN += int64(n)
+	if r == unicode.ReplacementChar { // U+FFFD
+		return r, n, errors.New("something got replaced") // TODO: improve this error
+	}
+
+	return r, n, nil
+}
+
 type callback func(s state) (next callback, err error)
 
 // TODO: reduce the massive amount of redundant copy/pasted code with inDoubleQuotes
 func initial(s state) (callback, error) {
-	r, n, err := s.r.ReadRune()
+	r, n, err := s.ReadRune()
 	if err != nil {
 		return nil, err
-	}
-	s.readN += int64(n)
-	if r == unicode.ReplacementChar { // U+FFFD
-		return nil, errors.New("something got replaced") // TODO: improve this error
 	}
 
 	if r == '"' {
@@ -38,7 +47,6 @@ func initial(s state) (callback, error) {
 		s.writtenN += int64(n)
 		return inDoubleQuotes, nil
 	}
-
 	n, err = s.w.WriteRune(r)
 	if err != nil {
 		return nil, err
