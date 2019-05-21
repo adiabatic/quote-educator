@@ -50,18 +50,48 @@ func (s *state) currentOffset() int64 {
 	return i
 }
 
-// PeekEquals returns true if needle matches what’s next.
+// PeekEquals returns true if the reading buffer contains needle starting at the current offset.
 func (s *state) PeekEquals(needle string) bool {
 	initialOffset := s.currentOffset()
 
 	nb := []byte(needle)
 	buf := make([]byte, len(nb))
-	_, err := s.r.ReadAt(buf, initialOffset)
+
+	if initialOffset <= 0 {
+		panic("PeekEquals assumes the first byte has been read, at least")
+	}
+	_, err := s.r.ReadAt(buf, initialOffset-1)
 	if err != nil && err != io.EOF {
 		log.Println("Unexpected non-EOF error in PeekEquals")
 	}
 
 	return bytes.Equal(nb, buf)
+}
+
+// AdvanceUntil reads and writes runes until stopAt is at the current offset.
+func (s *state) AdvanceUntil(stopAt string) error {
+	for !s.PeekEquals(stopAt) {
+		r, _, err := s.ReadRune()
+		if err != nil {
+			return err
+		}
+		s.WriteRune(r)
+	}
+
+	return nil
+}
+
+// AdvanceBy reads and writes n runes.
+func (s *state) AdvanceBy(n int) error {
+	for ; n > 0; n-- {
+		r, _, err := s.ReadRune()
+		if err != nil {
+			return err
+		}
+		s.WriteRune(r)
+	}
+
+	return nil
 }
 
 // func (s *state) SkipUntilString(needle string) error {
@@ -168,10 +198,11 @@ func inSingleQuotes(s *state) (next callback, err error) {
 func atHyphen(s *state) (next callback, err error) {
 	next = initial
 
-	// If we're at the beginning of the file then this hyphen could be the start of YAML front matter.
-	if s.currentOffset() == 0 {
+	// If we’ve read only a hyphen at offset 0 and are about to read a character at offset 1, then this might start a YAML front-matter block
+	if s.currentOffset() == 1 {
 		if s.PeekEquals("---") {
-			return inYamlFrontMatter, nil
+			s.WriteRune('-')
+			return atYamlFrontMatter, nil
 		}
 	} else if err != nil {
 		return nil, err
@@ -181,10 +212,20 @@ func atHyphen(s *state) (next callback, err error) {
 	return next, nil
 }
 
-func inYamlFrontMatter(s *state) (next callback, err error) {
+func atYamlFrontMatter(s *state) (next callback, err error) {
 	next = initial
 
-	// err = s.SkipUntilString("\n---\n")
+	const sentinel = "\n---\n"
+
+	err = s.AdvanceUntil(sentinel)
+	if err != nil {
+		return
+	}
+
+	err = s.AdvanceBy(len(sentinel))
+	if err != nil {
+		return
+	}
 
 	return
 }
