@@ -40,7 +40,7 @@ func (s *state) WriteTo(w io.Writer) (n int64, err error) {
 func (s *state) ReadRune() (rune, int, error) {
 	r, n, err := s.r.ReadRune()
 	if err != nil {
-		return r, n, err
+		return r, n, err // …without updating
 	}
 
 	s.previous = s.current
