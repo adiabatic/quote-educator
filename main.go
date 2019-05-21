@@ -11,9 +11,6 @@ import (
 )
 
 type state struct {
-	// r *bufio.Reader
-	//w *bufio.Writer
-
 	r *bytes.Reader
 	w bytes.Buffer
 
