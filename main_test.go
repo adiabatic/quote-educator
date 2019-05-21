@@ -36,6 +36,13 @@ func TestStrings(t *testing.T) {
 
 		// Things with hyphens
 		{"Ob-La-Di, Ob-La-Da", "Ob-La-Di, Ob-La-Da"},
+
+		// YAML front matter
+		// {
+		// 	"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can't just fall on a horse.\n",
+		// 	"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can’t just fall on a horse.\n",
+
+		//		},
 	}
 
 	for _, row := range rows {

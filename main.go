@@ -37,6 +37,31 @@ func (s *state) ReadRune() (rune, int, error) {
 	return r, n, nil
 }
 
+// PeekEquals returns true if needle matches what’s next.
+func (s *state) PeekEquals(needle string) bool {
+	nb := []byte(needle)
+	buf, err := s.r.Peek(len(nb))
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(nb, buf)
+}
+
+// func (s *state) SkipUntilString(needle string) error {
+// 	nb := []byte(needle)
+
+// 	for {
+// 		// buf contains up to and including
+// 		buf, err := s.r.ReadBytes(nb[0])
+// 		if err != nil {
+// 			return err
+// 		} // TODO: implement s.ReadBytes and use that instead. It should handle the write counts.
+
+// 	}
+
+// 	return nil
+// }
+
 func (s *state) WriteRune(r rune) (size int, err error) {
 	size, err = s.w.WriteRune(r)
 	if err != nil {
@@ -155,8 +180,9 @@ func atHyphen(s *state) (next callback, err error) {
 		return nil, fmt.Errorf("tried to read two characters after a hyphen that’s the first byte in the file, but only got %+v", twoMore)
 	}
 
-	if bytes.Equal([]byte("--"), twoMore) {
+	if s.PeekEquals("--") {
 		next = inYamlFrontMatter
+
 	}
 
 	return next, nil
@@ -164,6 +190,9 @@ func atHyphen(s *state) (next callback, err error) {
 
 func inYamlFrontMatter(s *state) (next callback, err error) {
 	next = initial
+
+	// err = s.SkipUntilString("\n---\n")
+
 	return
 }
 
