@@ -55,12 +55,14 @@ func initial(s *state) (next callback, err error) {
 
 	next = initial
 
-	if r == '"' {
+	switch r {
+	case '"', '“':
 		r = '“'
 		next = inDoubleQuotes
-	} else if r == '\'' {
+	case '\'':
 		// don’t assign r — we’re not sure if it’s going to be an opening single quote or an apostrophe
 		return atSingleQuote, nil
+
 	}
 
 	_, err = s.WriteRune(r)
@@ -78,7 +80,8 @@ func inDoubleQuotes(s *state) (next callback, err error) {
 
 	next = inDoubleQuotes
 
-	if r == '"' {
+	switch r {
+	case '"', '”':
 		r = '”'
 		next = initial
 	}

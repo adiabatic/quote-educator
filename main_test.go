@@ -16,9 +16,21 @@ func TestStrings(t *testing.T) {
 		{"", ""},
 		{" ", " "},
 		{"hello", "hello"},
+
+		// Double-quoty things
 		{"I like \"sarcasm quotes\".", "I like “sarcasm quotes”."},
 		{"I like \"American sarcasm quotes.\"", "I like “American sarcasm quotes.”"},
 		{`"Who?" "He." "Whom?" "Him."`, `“Who?” “He.” “Whom?” “Him.”`},
+		{
+			`“I start fancy but end sloppy." "Oh, really?"`,
+			`“I start fancy but end sloppy.” “Oh, really?”`,
+		},
+		{
+			`"I get better with age.” "Like a cheese, then?"`,
+			`“I get better with age.” “Like a cheese, then?”`,
+		},
+
+		// Single-quoty things
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
 	}
@@ -30,7 +42,7 @@ func TestStrings(t *testing.T) {
 				t.Error(err)
 			}
 			if got != row.Want {
-				t.Errorf("Expected «%s». got: «%s»", row.Want, got)
+				t.Errorf("\nexpected: «%s»\ngot:      «%s»", row.Want, got)
 			}
 		})
 	}
