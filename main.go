@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -13,18 +12,38 @@ import (
 )
 
 type state struct {
-	r *bufio.Reader
-	w *bufio.Writer
+	// r *bufio.Reader
+	//w *bufio.Writer
+
+	r *bytes.Reader
+	w bytes.Buffer
 
 	current, previous rune
 
 	readN, writtenN int64 // byte counts
 }
 
+func newState(whence io.Reader) (state, error) {
+	var s state
+
+	whenceContents, err := ioutil.ReadAll(whence)
+	if err != nil {
+		return s, err
+	}
+
+	s.r = bytes.NewReader(whenceContents)
+
+	return s, nil
+}
+
+func (s *state) WriteTo(w io.Writer) (n int64, err error) {
+	return s.w.WriteTo(w)
+}
+
 func (s *state) ReadRune() (rune, int, error) {
 	r, n, err := s.r.ReadRune()
 	if err != nil {
-		return unicode.ReplacementChar, n, err
+		return r, n, err
 	}
 	s.readN += int64(n)
 	if r == unicode.ReplacementChar { // U+FFFD
@@ -39,11 +58,18 @@ func (s *state) ReadRune() (rune, int, error) {
 
 // PeekEquals returns true if needle matches what’s next.
 func (s *state) PeekEquals(needle string) bool {
-	nb := []byte(needle)
-	buf, err := s.r.Peek(len(nb))
+	initialOffset, err := s.r.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return false
+		log.Fatalln("Apparently seeking without moving is error-prone:", err)
 	}
+
+	nb := []byte(needle)
+	buf := make([]byte, len(nb))
+	_, err = s.r.ReadAt(buf, initialOffset)
+	if err != nil && err != io.EOF {
+		log.Println("Unexpected non-EOF error in PeekEquals")
+	}
+
 	return bytes.Equal(nb, buf)
 }
 
@@ -165,26 +191,17 @@ func inSingleQuotes(s *state) (next callback, err error) {
 func atHyphen(s *state) (next callback, err error) {
 	next = initial
 
-	if s.readN != 0 {
-		_, err = s.WriteRune('-')
-		if err != nil {
-			return nil, err
+	// If we're at the beginning of the file then this hyphen could be the start of YAML front matter.
+
+	if offset, err := s.r.Seek(0, io.SeekCurrent); err == nil && offset == 0 {
+		if s.PeekEquals("---") {
+			return inYamlFrontMatter, nil
 		}
-		return next, nil
-	}
-	twoMore, err := s.r.Peek(2)
-	if err != nil {
+	} else if err != nil {
 		return nil, err
 	}
-	if len(twoMore) != 2 {
-		return nil, fmt.Errorf("tried to read two characters after a hyphen that’s the first byte in the file, but only got %+v", twoMore)
-	}
 
-	if s.PeekEquals("--") {
-		next = inYamlFrontMatter
-
-	}
-
+	s.WriteRune('-')
 	return next, nil
 }
 
@@ -213,29 +230,25 @@ func EducateString(s string) (string, error) {
 //
 // Blindly copies the interface of io.Copy without deeply considering why it has the return values it has.
 func Educate(out io.Writer, in io.Reader) (written int64, err error) {
-
-	inBuf := bufio.NewReader(in)
-	outBuf := bufio.NewWriter(out)
-	defer func() {
-		flushErr := outBuf.Flush()
-		if flushErr != nil {
-			log.Println(err)
-		}
-	}()
-
-	var s state
-	s.r = inBuf
-	s.w = outBuf
-	// leave readN and writtenN at 0 each for obvious reasons
+	s, err := newState(in)
+	if err != nil {
+		return 0, err
+	}
 
 	f := initial
 
 	for {
 		f, err = f(&s)
-		if err != nil {
-			return s.writtenN, err
+		if err != nil { // probably just an EOF
+			break
 		}
 	}
+
+	if err != nil && err != io.EOF {
+		return 0, err
+	}
+
+	return s.WriteTo(out)
 }
 
 func main() {
