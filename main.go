@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -62,7 +64,9 @@ func initial(s *state) (next callback, err error) {
 	case '\'':
 		// don’t assign r — we’re not sure if it’s going to be an opening single quote or an apostrophe
 		return atSingleQuote, nil
-
+	case '-':
+		// could be a YAML front matter or all sorts of fancy things
+		return atHyphen, nil
 	}
 
 	_, err = s.WriteRune(r)
@@ -131,6 +135,36 @@ func inSingleQuotes(s *state) (next callback, err error) {
 		return nil, err
 	}
 	return next, nil
+}
+
+func atHyphen(s *state) (next callback, err error) {
+	next = initial
+
+	if s.readN != 0 {
+		_, err = s.WriteRune('-')
+		if err != nil {
+			return nil, err
+		}
+		return next, nil
+	}
+	twoMore, err := s.r.Peek(2)
+	if err != nil {
+		return nil, err
+	}
+	if len(twoMore) != 2 {
+		return nil, fmt.Errorf("tried to read two characters after a hyphen that’s the first byte in the file, but only got %+v", twoMore)
+	}
+
+	if bytes.Equal([]byte("--"), twoMore) {
+		next = inYamlFrontMatter
+	}
+
+	return next, nil
+}
+
+func inYamlFrontMatter(s *state) (next callback, err error) {
+	next = initial
+	return
 }
 
 // EducateString is a convenience function for running Educate on strings.

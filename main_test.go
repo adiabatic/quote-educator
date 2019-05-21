@@ -33,6 +33,9 @@ func TestStrings(t *testing.T) {
 		// Single-quoty things
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
+
+		// Things with hyphens
+		{"Ob-La-Di, Ob-La-Da", "Ob-La-Di, Ob-La-Da"},
 	}
 
 	for _, row := range rows {
