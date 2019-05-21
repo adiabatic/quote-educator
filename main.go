@@ -49,16 +49,21 @@ func (s *state) ReadRune() (rune, int, error) {
 	return r, n, nil
 }
 
+func (s *state) currentOffset() int64 {
+	i, err := s.r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		panic(err) // I looked at the bytes.Reader source as of 2019-05-21 and this should never happen
+	}
+	return i
+}
+
 // PeekEquals returns true if needle matches what’s next.
 func (s *state) PeekEquals(needle string) bool {
-	initialOffset, err := s.r.Seek(0, io.SeekCurrent)
-	if err != nil {
-		log.Fatalln("Apparently seeking without moving is error-prone:", err)
-	}
+	initialOffset := s.currentOffset()
 
 	nb := []byte(needle)
 	buf := make([]byte, len(nb))
-	_, err = s.r.ReadAt(buf, initialOffset)
+	_, err := s.r.ReadAt(buf, initialOffset)
 	if err != nil && err != io.EOF {
 		log.Println("Unexpected non-EOF error in PeekEquals")
 	}
