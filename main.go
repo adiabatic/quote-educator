@@ -169,8 +169,7 @@ func atHyphen(s *state) (next callback, err error) {
 	next = initial
 
 	// If we're at the beginning of the file then this hyphen could be the start of YAML front matter.
-
-	if offset, err := s.r.Seek(0, io.SeekCurrent); err == nil && offset == 0 {
+	if s.currentOffset() == 0 {
 		if s.PeekEquals("---") {
 			return inYamlFrontMatter, nil
 		}
