@@ -120,10 +120,7 @@ func initial(s *state) (next callback, err error) {
 		return atHyphen, nil
 	}
 
-	_, err = s.WriteRune(r)
-	if err != nil {
-		return nil, err
-	}
+	s.WriteRune(r)
 	return next, nil
 }
 
@@ -141,12 +138,8 @@ func inDoubleQuotes(s *state) (next callback, err error) {
 		next = initial
 	}
 
-	_, err = s.WriteRune(r)
-	if err != nil {
-		return nil, err
-	}
+	s.WriteRune(r)
 	return next, nil
-
 }
 
 func atSingleQuote(s *state) (next callback, err error) {
@@ -161,10 +154,7 @@ func atSingleQuote(s *state) (next callback, err error) {
 		next = inSingleQuotes
 	}
 
-	_, err = s.WriteRune(r)
-	if err != nil {
-		return nil, err
-	}
+	s.WriteRune(r)
 	return next, nil
 }
 
@@ -181,10 +171,7 @@ func inSingleQuotes(s *state) (next callback, err error) {
 		next = initial
 	}
 
-	_, err = s.WriteRune(r)
-	if err != nil {
-		return nil, err
-	}
+	s.WriteRune(r)
 	return next, nil
 }
 
