@@ -94,21 +94,6 @@ func (s *state) AdvanceBy(n int) error {
 	return nil
 }
 
-// func (s *state) SkipUntilString(needle string) error {
-// 	nb := []byte(needle)
-
-// 	for {
-// 		// buf contains up to and including
-// 		buf, err := s.r.ReadBytes(nb[0])
-// 		if err != nil {
-// 			return err
-// 		} // TODO: implement s.ReadBytes and use that instead. It should handle the write counts.
-
-// 	}
-
-// 	return nil
-// }
-
 func (s *state) WriteRune(r rune) (size int, err error) {
 	return s.w.WriteRune(r)
 }
