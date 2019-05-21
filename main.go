@@ -111,6 +111,9 @@ func initial(s *state) (next callback, err error) {
 
 	next = initial
 
+	// The style for now:
+	// - in* get the runes written immediately
+	// - at* get the runes written at the earliest possible at* (atHyphen, not atYAMLFrontMatter)
 	switch r {
 	case '"', '“':
 		r = '“'
