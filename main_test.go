@@ -39,8 +39,14 @@ func TestStrings(t *testing.T) {
 
 		// YAML front matter
 		{
+			"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can't just fall on a horse.\n",
 			"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can’t just fall on a horse.\n",
-			"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can’t just fall on a horse.\n",
+		},
+
+		// Horizontal rules aren’t YAML front matter
+		{
+			"Let's take a breather.\n\n---\n\nWasn't that nice?.",
+			"Let’s take a breather.\n\n---\n\nWasn’t that nice?.",
 		},
 	}
 

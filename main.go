@@ -50,17 +50,14 @@ func (s *state) currentOffset() int64 {
 	return i
 }
 
-// PeekEquals returns true if the reading buffer contains needle starting at the current offset.
+// PeekEquals returns true if needle is just ahead of the current offset.
+//
+// The next call to ReadRune will return the first character of needle.
 func (s *state) PeekEquals(needle string) bool {
-	initialOffset := s.currentOffset()
-
 	nb := []byte(needle)
 	buf := make([]byte, len(nb))
 
-	if initialOffset <= 0 {
-		panic("PeekEquals assumes the first byte has been read, at least")
-	}
-	_, err := s.r.ReadAt(buf, initialOffset-1)
+	_, err := s.r.ReadAt(buf, s.currentOffset())
 	if err != nil && err != io.EOF {
 		log.Println("Unexpected non-EOF error in PeekEquals")
 	}
@@ -68,7 +65,9 @@ func (s *state) PeekEquals(needle string) bool {
 	return bytes.Equal(nb, buf)
 }
 
-// AdvanceUntil reads and writes runes until stopAt is at the current offset.
+// AdvanceUntil reads and writes runes until stopAt is just ahead of the current offset.
+//
+// In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopAt.
 func (s *state) AdvanceUntil(stopAt string) error {
 	for !s.PeekEquals(stopAt) {
 		r, _, err := s.ReadRune()
@@ -152,7 +151,7 @@ func atSingleQuote(s *state) (next callback, err error) {
 
 	next = initial
 
-	if s.previous == 'I' { // “I’d”, etc.
+	if unicode.IsLetter(s.previous) { // “I’d”, etc.
 		r = '’'
 	} else {
 		r = '‘'
@@ -184,13 +183,8 @@ func atHyphen(s *state) (next callback, err error) {
 	next = initial
 
 	// If we’ve read only a hyphen at offset 0 and are about to read a character at offset 1, then this might start a YAML front-matter block
-	if s.currentOffset() == 1 {
-		if s.PeekEquals("---") {
-			s.WriteRune('-')
-			return atYamlFrontMatter, nil
-		}
-	} else if err != nil {
-		return nil, err
+	if s.currentOffset() == 1 && s.PeekEquals("--") {
+		next = atYamlFrontMatter
 	}
 
 	s.WriteRune('-')
