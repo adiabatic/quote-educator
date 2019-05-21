@@ -103,7 +103,6 @@ func (s *state) WriteTo(w io.Writer) (n int64, err error) {
 
 type callback func(s *state) (next callback, err error)
 
-// TODO: reduce the massive amount of redundant copy/pasted code with inDoubleQuotes
 func initial(s *state) (next callback, err error) {
 	r, _, err := s.ReadRune()
 	if err != nil {
