@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,8 +18,6 @@ type state struct {
 	w bytes.Buffer
 
 	current, previous rune
-
-	readN, writtenN int64 // byte counts
 }
 
 func newState(whence io.Reader) (state, error) {
@@ -44,10 +41,6 @@ func (s *state) ReadRune() (rune, int, error) {
 	r, n, err := s.r.ReadRune()
 	if err != nil {
 		return r, n, err
-	}
-	s.readN += int64(n)
-	if r == unicode.ReplacementChar { // U+FFFD
-		return r, n, errors.New("something got replaced") // TODO: improve this error
 	}
 
 	s.previous = s.current
@@ -89,12 +82,7 @@ func (s *state) PeekEquals(needle string) bool {
 // }
 
 func (s *state) WriteRune(r rune) (size int, err error) {
-	size, err = s.w.WriteRune(r)
-	if err != nil {
-		return
-	}
-	s.writtenN += int64(size)
-	return
+	return s.w.WriteRune(r)
 }
 
 type callback func(s *state) (next callback, err error)
