@@ -30,10 +30,6 @@ func newState(whence io.Reader) (state, error) {
 	return s, nil
 }
 
-func (s *state) WriteTo(w io.Writer) (n int64, err error) {
-	return s.w.WriteTo(w)
-}
-
 func (s *state) ReadRune() (rune, int, error) {
 	r, n, err := s.r.ReadRune()
 	if err != nil {
@@ -85,6 +81,10 @@ func (s *state) PeekEquals(needle string) bool {
 
 func (s *state) WriteRune(r rune) (size int, err error) {
 	return s.w.WriteRune(r)
+}
+
+func (s *state) WriteTo(w io.Writer) (n int64, err error) {
+	return s.w.WriteTo(w)
 }
 
 type callback func(s *state) (next callback, err error)
