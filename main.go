@@ -136,6 +136,8 @@ func initial(s *state) (next callback, err error) {
 	case '-':
 		// could be a YAML front matter or all sorts of fancy things
 		return atHyphen, nil
+	case '`':
+		return atBacktick, nil
 	}
 
 	s.WriteRune(r)
@@ -215,12 +217,13 @@ func atYamlFrontMatter(s *state) (next callback, err error) {
 }
 
 func atBacktick(s *state) (next callback, err error) {
-	next = nil
+	next = atCodeSpan
 
 	if s.PeekEquals("``") {
 		next = atBacktickFence
 	}
 
+	s.WriteRune('`')
 	return
 }
 
@@ -230,6 +233,10 @@ func atCodeSpan(s *state) (next callback, err error) {
 }
 
 func atBacktickFence(s *state) (next callback, err error) {
+	next = initial
+
+	err = s.AdvanceThrough("\n```\n")
+	// non-nil or not, err gets returned
 
 	return
 }

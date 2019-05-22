@@ -48,6 +48,12 @@ func TestStrings(t *testing.T) {
 			"Let's take a breather.\n\n---\n\nWasn't that nice?.",
 			"Let’s take a breather.\n\n---\n\nWasn’t that nice?.",
 		},
+
+		// Hey! Teacher! Leave my code alone
+		{
+			"I'd like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn't that difficult?",
+			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
+		},
 	}
 
 	for _, row := range rows {
