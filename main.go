@@ -65,11 +65,11 @@ func (s *state) PeekEquals(needle string) bool {
 	return bytes.Equal(nb, buf)
 }
 
-// AdvanceUntil reads and writes runes until stopAt is just ahead of the current offset.
+// AdvanceUntil reads and writes runes until stopBefore is just ahead of the current offset.
 //
-// In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopAt.
-func (s *state) AdvanceUntil(stopAt string) error {
-	for !s.PeekEquals(stopAt) {
+// In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopBefore.
+func (s *state) AdvanceUntil(stopBefore string) error {
+	for !s.PeekEquals(stopBefore) {
 		r, _, err := s.ReadRune()
 		if err != nil {
 			return err
@@ -88,6 +88,18 @@ func (s *state) AdvanceBy(n int) error {
 			return err
 		}
 		s.WriteRune(r)
+	}
+
+	return nil
+}
+
+func (s *state) AdvanceThrough(stopAfter string) error {
+	if err := s.AdvanceUntil(stopAfter); err != nil {
+		return err
+	}
+
+	if err := s.AdvanceBy(len(stopAfter)); err != nil {
+		return err
 	}
 
 	return nil
@@ -196,17 +208,28 @@ func atHyphen(s *state) (next callback, err error) {
 func atYamlFrontMatter(s *state) (next callback, err error) {
 	next = initial
 
-	const sentinel = "\n---\n"
+	err = s.AdvanceThrough("\n---\n")
+	// non-nil error or not, it's getting returned anyway
 
-	err = s.AdvanceUntil(sentinel)
-	if err != nil {
-		return
+	return
+}
+
+func atBacktick(s *state) (next callback, err error) {
+	next = nil
+
+	if s.PeekEquals("``") {
+		next = atBacktickFence
 	}
 
-	err = s.AdvanceBy(len(sentinel))
-	if err != nil {
-		return
-	}
+	return
+}
+
+func atCodeSpan(s *state) (next callback, err error) {
+
+	return
+}
+
+func atBacktickFence(s *state) (next callback, err error) {
 
 	return
 }
