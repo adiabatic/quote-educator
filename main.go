@@ -10,6 +10,9 @@ import (
 	"unicode"
 )
 
+// A state struct contains information that the parser needs to keep track of.
+//
+// Ordinarily I’d call this type a “parser”, but all the what-to-do-when functions are as much of the parser as this bag of state is.
 type state struct {
 	r *bytes.Reader
 	w bytes.Buffer
@@ -113,7 +116,24 @@ func (s *state) WriteTo(w io.Writer) (n int64, err error) {
 	return s.w.WriteTo(w)
 }
 
+// A stateFunction specifies what to do to keep parsing the input given what’s come before.
+//
+// Conventions:
+//
+// Here’s the situation for the insides of stateFunctions that start with “at” (like “atHyphen” or “atYAMLFrontMatter”):
+//
+// - the current rune (i.e. the one that would be returned by state.ReadRune()) should be whatever comes just after the first rune in a series (like either a standalone hyphen or the first hyphen of three that starts a YAML front-matter block)
+// - they don’t call s.ReadRune() themselves (use state.PeekEquals() to see what’s next)
+//
+// Similarly, here’s the situation for the insides of stateFunctions that start with “in” (like “inSingleQuotes”):
+//
+// - the rune that would be returned by state.ReadRune() is something that’s inside the function’s namesake (like “f” or “a” or maybe the final “`” of “`fread()`”)
+// - they call s.ReadRune() pretty much at the top of the function
+//
+// Incidentally, http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/ calls this type a “parselet”. Maybe that’d be a better name.
 type callback func(s *state) (next callback, err error)
+
+// These functions are sorted by character. That is, atYamlFrontMatter (starts with ---) should come shortly after atHyphen (-).
 
 func initial(s *state) (next callback, err error) {
 	r, _, err := s.ReadRune()
@@ -124,6 +144,7 @@ func initial(s *state) (next callback, err error) {
 	next = initial
 
 	// The style for now:
+	// - lexing (differentiating between hyphens and a YAML Front Matter block) is fused with parsing
 	// - in* get the runes written immediately
 	// - at* get the runes written at the earliest possible at* (atHyphen, not atYAMLFrontMatter)
 	switch r {
@@ -240,6 +261,9 @@ func atBacktickFence(s *state) (next callback, err error) {
 
 	return
 }
+
+// Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
+// Open question: Does the parser, inside a callback function, always know what should come next? Or can a thingo that a callback function is handling show up in multiple contexts? Granted, one could hack around this with functions named "fooInABaz" vs. "fooInAQuux"…and that might be better than maintaining a stack.
 
 // EducateString is a convenience function for running Educate on strings.
 func EducateString(s string) (string, error) {
