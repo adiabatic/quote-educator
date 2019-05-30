@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"flag"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,15 +22,14 @@ type state struct {
 	current, previous rune
 }
 
-func newState(whence io.Reader) (state, error) {
+func newState(whence *bytes.Reader) (state, error) {
 	var s state
 
-	whenceContents, err := ioutil.ReadAll(whence)
-	if err != nil {
-		return s, err
+	if whence == nil {
+		return s, errors.New("newState: nil *bytes.Reader to read from")
 	}
 
-	s.r = bytes.NewReader(whenceContents)
+	s.r = whence
 
 	return s, nil
 }
@@ -259,10 +260,10 @@ func atBacktickFence(s *state) (next callback, err error) {
 
 // EducateString is a convenience function for running Educate on strings.
 func EducateString(s string) (string, error) {
-	sr := strings.NewReader(s)
+	br := bytes.NewReader([]byte(s))
 	out := &strings.Builder{}
 
-	_, err := Educate(out, sr)
+	_, err := Educate(out, br)
 	if err != nil && err != io.EOF {
 		return "", err
 	}
@@ -273,7 +274,7 @@ func EducateString(s string) (string, error) {
 // Educate curls quotes from in and writes them to out.
 //
 // Blindly copies the interface of io.Copy without deeply considering why it has the return values it has.
-func Educate(out io.Writer, in io.Reader) (written int64, err error) {
+func Educate(out io.Writer, in *bytes.Reader) (written int64, err error) {
 	s, err := newState(in)
 	if err != nil {
 		return 0, err
@@ -296,12 +297,54 @@ func Educate(out io.Writer, in io.Reader) (written int64, err error) {
 }
 
 func main() {
-	N, err := Educate(os.Stdout, os.Stdin)
+	var whence io.Reader = os.Stdin
+	var whither = os.Stdout
+
+	rewriteInPlace := flag.Bool("w", false, "write result to (source) file instead of stdout")
+	flag.Parse()
+	continueRewriteThings := false
+
+	if rewriteInPlace != nil && *rewriteInPlace {
+		switch len(flag.Args()) {
+		case 0:
+			log.Println("Must specify a file to overwrite with -w")
+			os.Exit(2)
+		case 1:
+			// continue
+		default:
+			log.Println("Must specify only one file to overwrite with -w")
+			os.Exit(3)
+		}
+
+		continueRewriteThings = true
+		var err error
+		whence, err = os.Open(flag.Args()[0])
+		if err != nil {
+			log.Printf("Could not open file named “%s” for both reading and writing: %v\n", flag.Args()[0], err)
+			os.Exit(4)
+		}
+	}
+
+	whenceContents, err := ioutil.ReadAll(whence)
+	if err != nil {
+		log.Println("Something went wrong when reading input: ", err)
+	}
+
+	whenceReader := bytes.NewReader(whenceContents)
+
+	if continueRewriteThings {
+		// now that we’ve got the input all slurped up, let’s set up the out piping
+
+		whither, err = os.OpenFile(flag.Args()[0], os.O_WRONLY|os.O_TRUNC, 0755) // BUG(adiabatic): cargo-culting the “0755”; I don’t understand masks
+
+	}
+
+	N, err := Educate(whither, whenceReader)
 	if err != nil {
 		log.Printf("%v bytes written before an error occurred: %v", N, err)
 		os.Exit(1)
 	}
-	err = os.Stdout.Sync()
+	err = whither.Sync()
 	if err != nil {
 		log.Printf("couldn’t flush stdout: %v", err)
 		os.Exit(2)
