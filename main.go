@@ -133,7 +133,7 @@ func (s *state) WriteTo(w io.Writer) (n int64, err error) {
 // Incidentally, http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/ calls this type a “parselet”. Maybe that’d be a better name.
 type callback func(s *state) (next callback, err error)
 
-// These functions are sorted by character. That is, atYamlFrontMatter (starts with ---) should come shortly after atHyphen (-).
+// These functions are sorted by character. That is, atYAMLFrontMatter (starts with ---) should come shortly after atHyphen (-).
 
 func initial(s *state) (next callback, err error) {
 	r, _, err := s.ReadRune()
@@ -221,20 +221,18 @@ func atHyphen(s *state) (next callback, err error) {
 
 	// If we’ve read only a hyphen at offset 0 and are about to read a character at offset 1, then this might start a YAML front-matter block
 	if s.currentOffset() == 1 && s.PeekEquals("--") {
-		next = atYamlFrontMatter
+		next = atYAMLFrontMatter
 	}
 
 	s.WriteRune('-')
 	return next, nil
 }
 
-func atYamlFrontMatter(s *state) (next callback, err error) {
+func atYAMLFrontMatter(s *state) (next callback, err error) {
 	next = initial
 
-	err = s.AdvanceThrough("\n---\n")
-	// non-nil error or not, it's getting returned anyway
-
-	return
+	// no, we are not going to write a YAML parser just to properly curl quotes in titles. Skip all this.
+	return next, s.AdvanceThrough("\n---\n")
 }
 
 func atBacktick(s *state) (next callback, err error) {
@@ -245,21 +243,15 @@ func atBacktick(s *state) (next callback, err error) {
 	}
 
 	s.WriteRune('`')
-	return
+	return next, nil
 }
 
 func atCodeSpan(s *state) (next callback, err error) {
-
-	return
+	return initial, s.AdvanceThrough("`")
 }
 
 func atBacktickFence(s *state) (next callback, err error) {
-	next = initial
-
-	err = s.AdvanceThrough("\n```\n")
-	// non-nil or not, err gets returned
-
-	return
+	return initial, s.AdvanceThrough("\n```\n")
 }
 
 // Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
