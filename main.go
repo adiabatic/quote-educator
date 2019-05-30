@@ -301,4 +301,9 @@ func main() {
 		log.Printf("%v bytes written before an error occurred: %v", N, err)
 		os.Exit(1)
 	}
+	err = os.Stdout.Sync()
+	if err != nil {
+		log.Printf("couldn’t flush stdout: %v", err)
+		os.Exit(2)
+	}
 }
