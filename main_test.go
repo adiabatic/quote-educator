@@ -49,16 +49,16 @@ func TestStrings(t *testing.T) {
 			"Let’s take a breather.\n\n---\n\nWasn’t that nice?.",
 		},
 
-		// Hey! Teacher! Leave my code alone
-		{
-			"I'd like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn't that difficult?",
-			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
-		},
-
 		// Ignore quote marks in code spans
 		{
 			"Let's consider \"Hello, World\" in Python. It's merely `print(\"Hello, World\")`. Now let's consider what that looks like in Java…",
 			"Let’s consider “Hello, World” in Python. It’s merely `print(\"Hello, World\")`. Now let’s consider what that looks like in Java…",
+		},
+
+		// Hey! Teacher! Leave my code alone
+		{
+			"I'd like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn't that difficult?",
+			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
 		},
 	}
 
