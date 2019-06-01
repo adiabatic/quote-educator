@@ -160,10 +160,27 @@ func initial(s *state) (next callback, err error) {
 		return atHyphen, nil
 	case '`':
 		return atBacktick, nil
+	case '<':
+		return atLessThan, nil
+	case '\\':
+		return atBackslash, nil
 	}
 
 	s.WriteRune(r)
 	return next, nil
+}
+
+func atBackslash(s *state) (next callback, err error) {
+	s.WriteRune('\\')
+	r, _, err := s.ReadRune()
+	if err != nil {
+		return initial, err
+	}
+
+	// Notice what we’re not doing: anything special based on what r has in it
+
+	s.WriteRune(r)
+	return initial, err
 }
 
 func inDoubleQuotes(s *state) (next callback, err error) {
@@ -174,6 +191,7 @@ func inDoubleQuotes(s *state) (next callback, err error) {
 
 	next = inDoubleQuotes
 
+	// BUG(adiabatic): What if there’s an apostrophe in these double quotes? How do we handle the apostrophe, or something more complicated?
 	switch r {
 	case '"', '”':
 		r = '”'
@@ -253,6 +271,125 @@ func atCodeSpan(s *state) (next callback, err error) {
 
 func atBacktickFence(s *state) (next callback, err error) {
 	return initial, s.AdvanceThrough("\n```\n")
+}
+
+func atLessThan(s *state) (next callback, err error) {
+	next = initial
+
+	r, _, err := s.ReadRune()
+	if unicode.IsLetter(r) {
+		// gonna assume it’s an HTML element
+		next = inHTMLElementName
+	}
+
+	s.WriteRune('<')
+	return next, nil
+}
+
+func inHTMLElementName(s *state) (next callback, err error) {
+	for shouldBreak := false; !shouldBreak; {
+		r, _, err := s.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+		if unicode.IsSpace(r) {
+			shouldBreak = true
+		}
+		s.WriteRune(r)
+	}
+
+	return next, nil
+}
+
+func atHTMLAttributeName(s *state) (next callback, err error) {
+	for shouldBreak := false; !shouldBreak; {
+		r, _, err := s.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+		if !isLegalHTMLAttributeNameRune(r) {
+			// Well, the name ended. Now what?
+			switch {
+			case r == '>':
+				// BUG(adiabatic): What if this is a code block? We won’t want to curl quotes in it.
+				next = initial
+				shouldBreak = true
+			case r == '=':
+				next = inHTMLAttributeEqualsSign
+				shouldBreak = true
+			case unicode.IsSpace(r):
+				// ok, keep going…
+			}
+
+		}
+		s.WriteRune(r)
+	}
+
+	return next, nil
+}
+
+func isLegalHTMLAttributeNameRune(r rune) bool {
+	// https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
+	if unicode.IsControl(r) { // should include tab
+		return false
+	}
+
+	switch r {
+	case ' ', '"', '\'', '>', '/', '=':
+		return false
+	}
+
+	// Full list of noncharacters: https://infra.spec.whatwg.org/#noncharacter
+	table := unicode.RangeTable{
+		R16: []unicode.Range16{{0xfdd0, 0xfdef, 1}, {0xfffe, 0xffff, 1}},
+		// BUG(adiabatic): Erroneously thinks non-BMP noncharacters are characters
+	}
+	if unicode.In(r, &table) {
+		return false
+	}
+
+	return true
+}
+
+func inHTMLAttributeEqualsSign(s *state) (next callback, err error) {
+	for shouldBreak := false; !shouldBreak; {
+		r, _, err := s.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+
+		switch {
+		case r == '\'':
+			next = atHTMLAttributeValueSingleQuote
+			shouldBreak = true
+		case r == '"':
+			next = atHTMLAttributeValueDoubleQuote
+			shouldBreak = true
+		case unicode.IsLetter(r), unicode.IsNumber(r):
+			// BUG(adiabatic): https://html.spec.whatwg.org/multipage/syntax.html#attributes-2 would say that, for unquoted attribute value syntax, that isalnum() is not enough
+			next = atHTMLAttributeValueUnquoted
+			shouldBreak = true
+		}
+
+		s.WriteRune(r)
+	}
+
+	return next, nil
+}
+
+func atHTMLAttributeValueSingleQuote(s *state) (next callback, err error) {
+
+	return next, nil
+}
+
+func atHTMLAttributeValueDoubleQuote(s *state) (next callback, err error) {
+
+	return next, nil
+}
+
+func atHTMLAttributeValueUnquoted(s *state) (next callback, err error) {
+
+	return next, nil
 }
 
 // Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks

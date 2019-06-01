@@ -13,9 +13,16 @@ type Row struct {
 
 func TestStrings(t *testing.T) {
 	rows := []Row{
+		// Absolute basics
 		{"", ""},
 		{" ", " "},
 		{"hello", "hello"},
+
+		// Backslashy things
+		{
+			"Some Europeans use \\` instead of ' when they're typing in English.",
+			"Some Europeans use \\` instead of ‘ when they’re typing in English.",
+		},
 
 		// Double-quoty things
 		{"I like \"sarcasm quotes\".", "I like “sarcasm quotes”."},
@@ -59,6 +66,12 @@ func TestStrings(t *testing.T) {
 		{
 			"I'd like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn't that difficult?",
 			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
+		},
+
+		// Handle uninteresting HTML elements sensibly
+		{
+			`"What's it called? Dymaxion margarita?" "Close. <i>Dymondia margaretae</i>."`,
+			"“What’s it called? Dymaxion margarita?” “Close. <i>Dymondia margaretae</i>.”",
 		},
 	}
 
