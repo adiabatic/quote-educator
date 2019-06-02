@@ -33,11 +33,18 @@ func newState(whence *bytes.Reader) (state, error) {
 	s.r = whence
 
 	s.whatDo = make(map[rune]callback)
+
+	s.whatDo['\\'] = atBackslash
+
 	s.whatDo['"'] = atDoubleQuote
 	s.whatDo['“'] = atDoubleQuote
 
 	s.whatDo['\''] = atSingleQuote
 	s.whatDo['‘'] = atSingleQuote
+
+	s.whatDo['-'] = atHyphen
+
+	s.whatDo['`'] = atBacktick
 
 	return s, nil
 }
@@ -191,10 +198,25 @@ func initial(s *state) error {
 	return err
 }
 
+func atBackslash(s *state) error {
+	r := s.mustReadRune()
+	if r != '\\' {
+		return fmt.Errorf("expected read rune to be \\ in atBackslash. got: «%s» (%U)", string(r), r)
+	}
+
+	s.writeRune(r)
+	r, err := s.readRune()
+	if err != nil {
+		return err
+	}
+	s.writeRune(r)
+	return err
+}
+
 func atDoubleQuote(s *state) error {
 	r := s.mustReadRune()
 	if !(r == '"' || r == '“') {
-		return fmt.Errorf("expected read rune to be \" or “ in atDoubleQuote. was: %s", string(r))
+		return fmt.Errorf("expected read rune to be \" or “ in atDoubleQuote. got: «%s» (%U)", string(r), r)
 	}
 
 	s.writeRune('“')
@@ -226,7 +248,7 @@ func inDoubleQuotes(s *state) error {
 func atSingleQuote(s *state) error {
 	r := s.mustReadRune()
 	if !(r == '\'' || r == '‘') {
-		return fmt.Errorf("Expecting a single quote, either curly or straight. got: %s", string(r))
+		return fmt.Errorf("Expecting a single quote, either curly or straight. got: «%s» (%U)", string(r), r)
 	}
 
 	if unicode.IsLetter(s.previousRune()) {
@@ -255,6 +277,48 @@ func inSingleQuotes(s *state) error {
 		}
 	}
 	return err
+}
+
+func atHyphen(s *state) error {
+	r := s.mustReadRune()
+	if r != '-' {
+		return fmt.Errorf("Expecting a hyphen. got: «%s» (%U)", string(r), r)
+	}
+
+	if s.currentOffset() == 1 && s.PeekEquals("--") {
+		s.writeRune(r)
+		return inYAMLFrontMatter(s)
+	}
+
+	return s.writeRune(r)
+}
+
+func inYAMLFrontMatter(s *state) error {
+	return s.AdvanceThrough("\n---\n") // Just don’t do anything
+}
+
+func atBacktick(s *state) error {
+	r := s.mustReadRune()
+	if r != '`' {
+		return fmt.Errorf("expecting a backtick. got: «%s» (%U)", string(r), r)
+	}
+
+	if s.PeekEquals("``") && s.previousRune() == '\n' {
+		s.writeRune(r)
+		return inTripleBacktickCodeBlock(s)
+	}
+
+	s.writeRune(r)
+	return inSingleBacktickCodeSpan(s)
+}
+
+func inSingleBacktickCodeSpan(s *state) error {
+	// BUG(adiabatic): what if there’s a backslashed backtick here
+	return s.AdvanceThrough("`")
+}
+
+func inTripleBacktickCodeBlock(s *state) error {
+	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
 
 // Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks

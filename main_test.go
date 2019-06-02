@@ -66,6 +66,33 @@ func TestStrings(t *testing.T) {
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
 
+		// Things with hyphens
+		{"Ob-La-Di, Ob-La-Da", "Ob-La-Di, Ob-La-Da"},
+
+		// YAML front matter
+		{
+			"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can't just fall on a horse.\n",
+			"---\ntitle: 'Zelda: Breath of the Wild vignettes'\n---\n\nYou can’t just fall on a horse.\n",
+		},
+
+		// Horizontal rules aren’t YAML front matter
+		{
+			"Let's take a breather.\n\n---\n\nWasn't that nice?.",
+			"Let’s take a breather.\n\n---\n\nWasn’t that nice?.",
+		},
+
+		// Ignore quote marks in code spans
+		{
+			"Let's consider \"Hello, World\" in Python. It's merely `print(\"Hello, World\")`. Now let's consider what that looks like in Java…",
+			"Let’s consider “Hello, World” in Python. It’s merely `print(\"Hello, World\")`. Now let’s consider what that looks like in Java…",
+		},
+
+		// Hey! Teacher! Leave my code alone
+		{
+			"I'd like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn't that difficult?",
+			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
+		},
+
 		// Handle uninteresting HTML elements sensibly
 		{
 			`"What's it called? Dymaxion margarita?" "Close. <i>Dymondia margaretae</i>."`,
