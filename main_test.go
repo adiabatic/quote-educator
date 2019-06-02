@@ -33,13 +33,13 @@ func TestStrings(t *testing.T) {
 		{"", ""},
 		{" ", " "},
 		{"hello", "hello"},
-		/*
-			// Backslashy things
-			{
-				"Some Europeans use \\` instead of ' when they're typing in English.",
-				"Some Europeans use \\` instead of ‘ when they’re typing in English.",
-			},
-		*/
+
+		// Backslashy things
+		{
+			"Some Europeans use \\` instead of ' when they're typing in English.",
+			"Some Europeans use \\` instead of ‘ when they’re typing in English.",
+		},
+
 		// Double-quoty things
 		{
 			`I like "sarcasm quotes".`,
