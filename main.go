@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // A state struct contains information that the parser needs to keep track of.
@@ -19,7 +20,7 @@ type state struct {
 	r *bytes.Reader
 	w bytes.Buffer
 
-	current, previous rune
+	whatDo map[rune]callback
 }
 
 func newState(whence *bytes.Reader) (state, error) {
@@ -31,19 +32,53 @@ func newState(whence *bytes.Reader) (state, error) {
 
 	s.r = whence
 
+	s.whatDo = make(map[rune]callback)
+	s.whatDo['"'] = atDoubleQuote
+	s.whatDo['“'] = atDoubleQuote
+
+	s.whatDo['\''] = atSingleQuote
+	s.whatDo['‘'] = atSingleQuote
+
 	return s, nil
 }
 
-func (s *state) ReadRune() (rune, int, error) {
-	r, n, err := s.r.ReadRune()
+func (s *state) readRune() (rune, error) {
+	r, _, err := s.r.ReadRune()
 	if err != nil {
-		return r, n, err // …without updating
+		return r, err // …without updating
 	}
 
-	s.previous = s.current
-	s.current = r
+	return r, nil
+}
 
-	return r, n, nil
+func (s *state) previousRune() rune {
+	r, size := utf8.DecodeLastRune(s.w.Bytes())
+	if size == 0 {
+		panic("Couldn’t decode the last rune in s.w.Bytes()")
+	}
+	return r
+}
+
+func (s *state) mustReadRune() rune {
+	r, err := s.readRune()
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
+func (s *state) peekRune() (rune, error) {
+	r, _, err := s.r.ReadRune()
+	if err != nil {
+		return r, err
+	}
+
+	err = s.r.UnreadRune()
+	return r, err
+}
+
+func (s *state) unreadRune() error {
+	return s.r.UnreadRune()
 }
 
 func (s *state) currentOffset() int64 {
@@ -74,11 +109,11 @@ func (s *state) PeekEquals(needle string) bool {
 // In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopBefore.
 func (s *state) AdvanceUntil(stopBefore string) error {
 	for !s.PeekEquals(stopBefore) {
-		r, _, err := s.ReadRune()
+		r, err := s.readRune()
 		if err != nil {
 			return err
 		}
-		s.WriteRune(r)
+		s.writeRune(r)
 	}
 
 	return nil
@@ -87,11 +122,11 @@ func (s *state) AdvanceUntil(stopBefore string) error {
 // AdvanceBy reads and writes n runes.
 func (s *state) AdvanceBy(n int) error {
 	for ; n > 0; n-- {
-		r, _, err := s.ReadRune()
+		r, err := s.readRune()
 		if err != nil {
 			return err
 		}
-		s.WriteRune(r)
+		s.writeRune(r)
 	}
 
 	return nil
@@ -109,8 +144,9 @@ func (s *state) AdvanceThrough(stopAfter string) error {
 	return nil
 }
 
-func (s *state) WriteRune(r rune) (size int, err error) {
-	return s.w.WriteRune(r)
+func (s *state) writeRune(r rune) error {
+	_, err := s.w.WriteRune(r)
+	return err
 }
 
 func (s *state) WriteTo(w io.Writer) (n int64, err error) {
@@ -132,117 +168,97 @@ func (s *state) WriteTo(w io.Writer) (n int64, err error) {
 // - they call s.ReadRune() pretty much at the top of the function
 //
 // Incidentally, http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/ calls this type a “parselet”. Maybe that’d be a better name.
-type callback func(s *state) (next callback, err error)
+type callback func(s *state) error
 
 // These functions are sorted by character. That is, atYAMLFrontMatter (starts with ---) should come shortly after atHyphen (-).
 
-func initial(s *state) (next callback, err error) {
-	r, _, err := s.ReadRune()
-	if err != nil {
-		return nil, err
+func initial(s *state) error {
+	var r rune
+	var err error
+	for err == nil {
+		r, err = s.peekRune()
+		if err != nil {
+			return err
+		}
+
+		if f, ok := s.whatDo[r]; ok {
+			err = f(s)
+		} else {
+			s.writeRune(s.mustReadRune())
+		}
 	}
 
-	next = initial
-
-	// The style for now:
-	// - lexing (differentiating between hyphens and a YAML Front Matter block) is fused with parsing
-	// - in* get the runes written immediately
-	// - at* get the runes written at the earliest possible at* (atHyphen, not atYAMLFrontMatter)
-	switch r {
-	case '"', '“':
-		r = '“'
-		next = inDoubleQuotes
-	case '\'':
-		// don’t assign r — we’re not sure if it’s going to be an opening single quote or an apostrophe
-		return atSingleQuote, nil
-	case '\\':
-		return atBackslash, nil
-	}
-
-	s.WriteRune(r)
-	return next, nil
+	return err
 }
 
-func atBackslash(s *state) (next callback, err error) {
-	s.WriteRune('\\')
-	r, _, err := s.ReadRune()
-	if err != nil {
-		return initial, err
+func atDoubleQuote(s *state) error {
+	r := s.mustReadRune()
+	if !(r == '"' || r == '“') {
+		return fmt.Errorf("expected read rune to be \" or “ in atDoubleQuote. was: %s", string(r))
 	}
 
-	// Notice what we’re not doing: anything special based on what r has in it
-
-	s.WriteRune(r)
-	return initial, err
+	s.writeRune('“')
+	return inDoubleQuotes(s)
 }
 
-func inDoubleQuotes(s *state) (next callback, err error) {
-	r, _, err := s.ReadRune()
-	if err != nil {
-		return nil, err
+func inDoubleQuotes(s *state) error {
+	var r rune
+	var err error
+	for err == nil {
+		r, err = s.readRune()
+		if err != nil {
+			break
+		}
+
+		if r == '"' || r == '”' {
+			return s.writeRune('”')
+		} else if f, ok := s.whatDo[r]; ok {
+			s.unreadRune()
+			err = f(s)
+		} else {
+			s.writeRune(r)
+		}
 	}
 
-	next = inDoubleQuotes
-
-	// BUG(adiabatic): What if there’s an apostrophe in these double quotes? How do we handle the apostrophe, or something more complicated?
-	switch r {
-	case '"', '”':
-		r = '”'
-		next = initial
-	}
-
-	s.WriteRune(r)
-	return next, nil
+	return err
 }
 
-func atSingleQuote(s *state) (next callback, err error) {
-	r := unicode.ReplacementChar // Don’t read anything yet
-
-	next = initial
-
-	if unicode.IsLetter(s.previous) { // “I’d”, etc.
-		r = '’'
-	} else {
-		r = '‘'
-		next = inSingleQuotes
+func atSingleQuote(s *state) error {
+	r := s.mustReadRune()
+	if !(r == '\'' || r == '‘') {
+		return fmt.Errorf("Expecting a single quote, either curly or straight. got: %s", string(r))
 	}
 
-	s.WriteRune(r)
-	return next, nil
+	if unicode.IsLetter(s.previousRune()) {
+		return s.writeRune('’')
+	}
+
+	s.writeRune('‘')
+	return inSingleQuotes(s)
 }
 
-func inSingleQuotes(s *state) (next callback, err error) {
-	r, _, err := s.ReadRune()
-	if err != nil {
-		return nil, err
+func inSingleQuotes(s *state) error {
+	var r rune
+	var err error
+	for err == nil {
+		r, err = s.readRune()
+		if err != nil {
+			break
+		}
+
+		if r == '\'' || r == '’' {
+			return s.writeRune('’')
+		} else if f, ok := s.whatDo[r]; ok {
+			err = f(s)
+		} else {
+			s.writeRune(r)
+		}
 	}
-
-	next = inSingleQuotes
-
-	if r == '\'' {
-		r = '’'
-		next = initial
-	}
-
-	s.WriteRune(r)
-	return next, nil
+	return err
 }
 
 // Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
 // Open question: Does the parser, inside a callback function, always know what should come next? Or can a thingo that a callback function is handling show up in multiple contexts? Granted, one could hack around this with functions named "fooInABaz" vs. "fooInAQuux"…and that might be better than maintaining a stack.
-
-// EducateString is a convenience function for running Educate on strings.
-func EducateString(s string) (string, error) {
-	br := bytes.NewReader([]byte(s))
-	out := &strings.Builder{}
-
-	_, err := Educate(out, br)
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-
-	return out.String(), nil
-}
 
 // Educate curls quotes from in and writes them to out.
 //
@@ -253,14 +269,7 @@ func Educate(out io.Writer, in *bytes.Reader) (written int64, err error) {
 		return 0, err
 	}
 
-	f := initial
-
-	for {
-		f, err = f(&s)
-		if err != nil { // probably just an EOF
-			break
-		}
-	}
+	err = initial(&s)
 
 	if err != nil && err != io.EOF {
 		return 0, err

@@ -1,10 +1,26 @@
 package main_test
 
 import (
+	"bytes"
+	"io"
+	"strings"
 	"testing"
 
 	quotes "github.com/adiabatic/quote-educator"
 )
+
+// EducateString is a convenience function for running Educate on strings.
+func EducateString(s string) (string, error) {
+	br := bytes.NewReader([]byte(s))
+	out := &strings.Builder{}
+
+	_, err := quotes.Educate(out, br)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+
+	return out.String(), nil
+}
 
 type Row struct {
 	In   string
@@ -17,17 +33,26 @@ func TestStrings(t *testing.T) {
 		{"", ""},
 		{" ", " "},
 		{"hello", "hello"},
-
-		// Backslashy things
-		{
-			"Some Europeans use \\` instead of ' when they're typing in English.",
-			"Some Europeans use \\` instead of ‘ when they’re typing in English.",
-		},
-
+		/*
+			// Backslashy things
+			{
+				"Some Europeans use \\` instead of ' when they're typing in English.",
+				"Some Europeans use \\` instead of ‘ when they’re typing in English.",
+			},
+		*/
 		// Double-quoty things
-		{"I like \"sarcasm quotes\".", "I like “sarcasm quotes”."},
-		{"I like \"American sarcasm quotes.\"", "I like “American sarcasm quotes.”"},
-		{`"Who?" "He." "Whom?" "Him."`, `“Who?” “He.” “Whom?” “Him.”`},
+		{
+			`I like "sarcasm quotes".`,
+			`I like “sarcasm quotes”.`,
+		},
+		{
+			`I like "American sarcasm quotes."`,
+			"I like “American sarcasm quotes.”",
+		},
+		{
+			`"Who?" "He." "Whom?" "Him."`,
+			`“Who?” “He.” “Whom?” “Him.”`,
+		},
 		{
 			`“I start fancy but end sloppy." "Oh, really?"`,
 			`“I start fancy but end sloppy.” “Oh, really?”`,
@@ -50,7 +75,7 @@ func TestStrings(t *testing.T) {
 
 	for _, row := range rows {
 		t.Run(row.In, func(t *testing.T) {
-			got, err := quotes.EducateString(row.In)
+			got, err := EducateString(row.In)
 			if err != nil {
 				t.Error(err)
 			}
