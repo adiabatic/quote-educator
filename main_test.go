@@ -55,7 +55,7 @@ func TestStrings(t *testing.T) {
 				t.Error(err)
 			}
 			if got != row.Want {
-				t.Errorf("\nexpected: «%s»\ngot:      «%s»", row.Want, got)
+				t.Errorf("\nsource:   «%s»\nexpected: «%s»\ngot:      «%s»", row.In, row.Want, got)
 			}
 		})
 	}
