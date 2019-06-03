@@ -93,6 +93,24 @@ func TestStrings(t *testing.T) {
 			"I’d like to show you my first:\n\n```\nprint 'Hello, world!'\n```\n\nWasn’t that difficult?",
 		},
 
+		// Gotta curl quotes after the code span is over.
+		{
+			"`⌘⇥` isn't very different from Windows, but…",
+			"`⌘⇥` isn’t very different from Windows, but…",
+		},
+
+		// Backslashed backticks in code spans
+		{
+			"`⌘\\`` isn't easy to get used to",
+			"`⌘\\`` isn’t easy to get used to",
+		},
+
+		// More fun with backslashes and backticks
+		{
+			"\"`\\`ls\\` # I don't know what I'm doing`\" was the comment he'd written all those years ago?",
+			"“`\\`ls\\` # I don't know what I'm doing`” was the comment he’d written all those years ago?",
+		},
+
 		// Handle uninteresting HTML elements sensibly
 		{
 			`"What's it called? Dymaxion margarita?" "Close. <i>Dymondia margaretae</i>."`,

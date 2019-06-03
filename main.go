@@ -313,16 +313,29 @@ func atBacktick(s *state) error {
 }
 
 func inSingleBacktickCodeSpan(s *state) error {
-	// BUG(adiabatic): what if there’s a backslashed backtick here
-	return s.AdvanceThrough("`")
+	for {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+
+		previousRune := s.previousRune()
+
+		s.writeRune(r) // after this call, r would be returned by s.previousRune()
+
+		if r == '`' && previousRune != '\\' {
+			break
+		}
+	}
+
+	return nil
 }
 
 func inTripleBacktickCodeBlock(s *state) error {
 	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
 
-// Not yet added: in/at functions for: \, <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
-// Open question: Does the parser, inside a callback function, always know what should come next? Or can a thingo that a callback function is handling show up in multiple contexts? Granted, one could hack around this with functions named "fooInABaz" vs. "fooInAQuux"…and that might be better than maintaining a stack.
+// Not yet added: in/at functions for: <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
 
 // Educate curls quotes from in and writes them to out.
 //
