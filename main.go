@@ -21,6 +21,8 @@ type state struct {
 	w bytes.Buffer
 
 	whatDo map[rune]callback
+
+	codeElementsEntered int
 }
 
 func newState(whence *bytes.Reader) (state, error) {
@@ -45,6 +47,8 @@ func newState(whence *bytes.Reader) (state, error) {
 	s.whatDo['-'] = atHyphen
 
 	s.whatDo['`'] = atBacktick
+
+	s.whatDo['<'] = atLessThan
 
 	return s, nil
 }
@@ -84,6 +88,16 @@ func (s *state) peekRune() (rune, error) {
 	return r, err
 }
 
+// mustPeekRune is only for debug code.
+func (s *state) mustPeekRune() rune {
+	r, err := s.peekRune()
+	if err != nil {
+		panic(err)
+	}
+
+	return r
+}
+
 func (s *state) unreadRune() error {
 	return s.r.UnreadRune()
 }
@@ -111,6 +125,22 @@ func (s *state) PeekEquals(needle string) bool {
 	return bytes.Equal(nb, buf)
 }
 
+// AdvanceBy reads and writes n runes.
+func (s *state) AdvanceBy(n int) error {
+	for ; n > 0; n-- {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+		s.writeRune(r)
+	}
+
+	return nil
+}
+
+// A runePredicate returns true when the given rune exhibits some property.
+type runePredicate func(rune) bool
+
 // AdvanceUntil reads and writes runes until stopBefore is just ahead of the current offset.
 //
 // In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopBefore.
@@ -126,17 +156,25 @@ func (s *state) AdvanceUntil(stopBefore string) error {
 	return nil
 }
 
-// AdvanceBy reads and writes n runes.
-func (s *state) AdvanceBy(n int) error {
-	for ; n > 0; n-- {
-		r, err := s.readRune()
+// AdvanceUntilTrue reads and writes from s, stopping only when the peeked-at rune matches a predicate.
+func (s *state) AdvanceUntilTrue(f runePredicate) error {
+	for {
+		p, err := s.peekRune()
 		if err != nil {
 			return err
 		}
-		s.writeRune(r)
-	}
 
-	return nil
+		if f(p) {
+			return nil
+		}
+		s.writeRune(s.mustReadRune())
+	}
+}
+
+// AdvanceUntilFalse reads and writes from s, stopping only when the peeked-at rune doesn’t a predicate.
+func (s *state) AdvanceUntilFalse(f runePredicate) error {
+	g := func(r rune) bool { return !f(r) }
+	return s.AdvanceUntilTrue(g)
 }
 
 func (s *state) AdvanceThrough(stopAfter string) error {
@@ -335,6 +373,113 @@ func inTripleBacktickCodeBlock(s *state) error {
 	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
 
+func atLessThan(s *state) error {
+	r := s.mustReadRune()
+	if r != '<' {
+		return fmt.Errorf("expecting a less-than symbol (<). got: «%s» (%U)", string(r), r)
+	}
+
+	s.writeRune(r)
+
+	r, err := s.readRune()
+	if err != nil {
+		return err
+	}
+
+	// https://html.spec.whatwg.org/multipage/syntax.html#syntax-tag-name notwithstanding, no elements are ever going to *start* with a *number*, right?
+	if unicode.IsLetter(r) {
+		s.writeRune(r)
+		return inHTMLStartTagName(s)
+	}
+
+	if r == '/' {
+		s.writeRune(r)
+		return inHTMLEndTagName(s)
+	}
+	return s.writeRune(r)
+}
+
+func inHTMLStartTagName(s *state) error {
+	// The first (and possibly only) letter of the element name has already been written.
+
+	var err error
+	codeElementsEnteredAtStart := s.codeElementsEntered
+	if s.previousRune() == 'c' && s.PeekEquals("ode") {
+		log.Println("Into a code!")
+		s.codeElementsEntered++
+	}
+
+	// Read and write the element name.
+	// When this is done, the last letter of the element name will be freshly written.
+	// The next rune will be whitespace (maybe junk, maybe preceding an attribute) or >.
+	for {
+		p, err := s.peekRune()
+		if err != nil {
+			log.Println("Unexpected error peeking rune in inHTMLStartTagName")
+			return err
+		}
+		log.Printf("At the initial peek, p was %v", string(p))
+
+		if p == '>' {
+			break
+		}
+
+		if isASCIIWhitespace(p) {
+			log.Printf("At the break point, p was: %s (%U)", string(p), p)
+			break
+		}
+
+		s.writeRune(s.mustReadRune())
+	}
+
+	// Now we need to advance past any whitespace so s.peekRune() gives us either an attribute name or >.
+	_, err = s.peekRune()
+	if err != nil {
+		return err
+	}
+
+	if true {
+		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+		if err != nil {
+			return err
+		}
+		s.writeRune(s.mustReadRune())
+	}
+
+	log.Printf("After advancing through the whitespace, op is %s%s", string(s.previousRune()), string(s.mustPeekRune()))
+
+	if s.previousRune() == '>' {
+		if s.codeElementsEntered > codeElementsEnteredAtStart {
+			return inCodeElement(s)
+		}
+	}
+
+	// TODO: Handle attributes (that is, don’t curl attribute quotes)
+	return err
+}
+
+func inHTMLEndTagName(s *state) error {
+	if s.PeekEquals("code") {
+		s.codeElementsEntered--
+	}
+
+	return s.AdvanceThrough(">")
+}
+
+func inCodeElement(s *state) error {
+	err := s.AdvanceThrough("</code")
+	if err != nil {
+		return err
+	}
+
+	err = s.AdvanceUntilTrue(isASCIIWhitespace)
+	if err != nil {
+		return err
+	}
+
+	return s.writeRune(s.mustReadRune())
+}
+
 // Not yet added: in/at functions for: <, HTML element names, HTML element attributes, HTML element attribute values, old-school four-indent preformatted-code blocks
 
 // Educate curls quotes from in and writes them to out.
@@ -408,4 +553,12 @@ func main() {
 		log.Printf("couldn’t flush stdout: %v", err)
 		os.Exit(2)
 	}
+}
+
+func isASCIIWhitespace(r rune) bool {
+	switch r {
+	case 0x0009, 0x000a, 0x000c, 0x000d, 0x0020: // tab, linefeed, form feed, carriage return, space
+		return true
+	}
+	return false
 }

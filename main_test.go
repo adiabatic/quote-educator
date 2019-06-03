@@ -116,6 +116,18 @@ func TestStrings(t *testing.T) {
 			`"What's it called? Dymaxion margarita?" "Close. <i>Dymondia margaretae</i>."`,
 			"“What’s it called? Dymaxion margarita?” “Close. <i>Dymondia margaretae</i>.”",
 		},
+
+		// Handle intact <code> elements
+		{
+			"<code>snprintf(buffer, ∆izeof(buffer), \"%s\", string);</code>",
+			"<code>snprintf(buffer, ∆izeof(buffer), \"%s\", string);</code>",
+		},
+
+		// Handle uninteresting weirdly-spaced HTML elements sensibly
+		{
+			"<code >Console.WriteLine(\"Hello, world!\");</code>",
+			"<code >Console.WriteLine(\"Hello, world!\");</code>",
+		},
 	}
 
 	for _, row := range rows {
