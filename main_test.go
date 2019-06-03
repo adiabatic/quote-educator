@@ -128,6 +128,24 @@ func TestStrings(t *testing.T) {
 			"<code >Console.WriteLine(\"Hello, world!\");</code>",
 			"<code >Console.WriteLine(\"Hello, world!\");</code>",
 		},
+
+		// Handle empty attributes
+		{
+			"<p hidden>I'm a spooky ghost. OooOoOoooo.</p>",
+			"<p hidden>I’m a spooky ghost. OooOoOoooo.</p>",
+		},
+
+		// Handle space after empty attributes
+		{
+			"<input disabled  >∂sn't this illegal HTML?</input>",
+			"<input disabled  >∂sn’t this illegal HTML?</input>",
+		},
+
+		// Handle double-quoted attributes
+		{
+			`<abbr title="YAML Ain't Markup Language">YAML</abbr> isn't bad.`,
+			`<abbr title="YAML Ain't Markup Language">YAML</abbr> isn’t bad.`,
+		},
 	}
 
 	for _, row := range rows {

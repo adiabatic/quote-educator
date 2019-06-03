@@ -189,6 +189,20 @@ func (s *state) AdvanceThrough(stopAfter string) error {
 	return nil
 }
 
+// Reads and writes one rune if the passed-through error is nil.
+func (s *state) advanceOneMore(err error) error {
+	if err != nil {
+		return err
+	}
+
+	r, err := s.readRune()
+	if err != nil {
+		return err
+	}
+
+	return s.writeRune(r)
+}
+
 func (s *state) writeRune(r rune) error {
 	_, err := s.w.WriteRune(r)
 	return err
@@ -402,29 +416,27 @@ func atLessThan(s *state) error {
 func inHTMLStartTagName(s *state) error {
 	// The first (and possibly only) letter of the element name has already been written.
 
+	var p rune
+	//var r rune
 	var err error
+
+	// Are we entering a code element? They’re special because we don’t curl quotes there.
 	codeElementsEnteredAtStart := s.codeElementsEntered
 	if s.previousRune() == 'c' && s.PeekEquals("ode") {
-		log.Println("Into a code!")
 		s.codeElementsEntered++
 	}
 
 	// Read and write the element name.
 	// When this is done, the last letter of the element name will be freshly written.
-	// The next rune will be whitespace (maybe junk, maybe preceding an attribute) or >.
+	// The next rune will be either whitespace (maybe junk, maybe preceding an attribute) or >.
 	for {
-		p, err := s.peekRune()
+		p, err = s.peekRune()
 		if err != nil {
 			log.Println("Unexpected error peeking rune in inHTMLStartTagName")
 			return err
 		}
-		log.Printf("At the initial peek, p was %v", string(p))
 
-		if p == '>' {
-			break
-		}
-
-		if isASCIIWhitespace(p) {
+		if isASCIIWhitespace(p) || p == '>' {
 			log.Printf("At the break point, p was: %s (%U)", string(p), p)
 			break
 		}
@@ -432,30 +444,134 @@ func inHTMLStartTagName(s *state) error {
 		s.writeRune(s.mustReadRune())
 	}
 
-	// Now we need to advance past any whitespace so s.peekRune() gives us either an attribute name or >.
-	_, err = s.peekRune()
+	p, err = s.peekRune()
 	if err != nil {
 		return err
 	}
+	if !(p == '>' || isASCIIWhitespace(p)) {
+		log.Fatalf("postcondition failed. was expecting p to be either > or whitespace; was %s (%U)", string(p), p)
+	}
 
-	if true {
-		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+	// Now we need to advance past any whitespace so s.peekRune() gives us either an attribute name or >.
+	{
+		err = s.advanceOneMore(s.AdvanceUntilFalse(isASCIIWhitespace))
 		if err != nil {
 			return err
 		}
-		s.writeRune(s.mustReadRune())
 	}
 
-	log.Printf("After advancing through the whitespace, op is %s%s", string(s.previousRune()), string(s.mustPeekRune()))
+	log.Printf("After advancing through the whitespace, op is %s%s",
+		string(s.previousRune()), string(s.mustPeekRune()))
 
 	if s.previousRune() == '>' {
 		if s.codeElementsEntered > codeElementsEnteredAtStart {
 			return inCodeElement(s)
 		}
+	} else if unicode.IsLetter(s.previousRune()) {
+		err = handleHTMLAttributes(s)
+		if err != nil {
+			return err
+		}
 	}
 
 	// TODO: Handle attributes (that is, don’t curl attribute quotes)
 	return err
+}
+
+// handleHTMLAttributes does the obvious. When it ends, s.peekRune() will return >.
+func handleHTMLAttributes(s *state) error {
+	// s.previousRune() is the first letter of the attribute name
+	err := s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
+	if err != nil {
+		return err
+	}
+
+	p, err := s.peekRune()
+	if err != nil {
+		return err
+	}
+
+	// Move past the whitespace until we get to what should be either a > or =.
+	if isASCIIWhitespace(p) {
+		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+		if err != nil {
+			return err
+		}
+	}
+
+	// check postcondition
+	p, err = s.peekRune()
+	if err != nil {
+		return err
+	}
+	if !(p == '>' || p == '=') {
+		log.Fatalf("postcondition failed. p was expected to be either > or =, but was %s instead", string(p))
+	}
+
+	log.Println(string(s.mustPeekRune()))
+
+	if p == '>' {
+		return nil
+	}
+
+	// p has to be =, then.
+
+	s.writeRune(s.mustReadRune())
+
+	p, err = s.peekRune()
+	if err != nil {
+		return err
+	}
+
+	// Move past the whitespace until we get to a ", ', or the characters of an unquoted attribute value.
+	// The full rules: https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
+	if isASCIIWhitespace(p) {
+		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+		if err != nil {
+			return err
+		}
+	}
+
+	// What kind of attribute value do we have?
+
+	p, err = s.peekRune()
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case p == '"':
+		s.writeRune(s.mustReadRune())
+		err = inDoubleQuotedAttributeValue(s)
+		// case unicode.IsLetter(p), unicode.IsNumber(p), p == '/':
+		// default:
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func inDoubleQuotedAttributeValue(s *state) error {
+	// yes, this is totally copied from inSingleBacktickCodeSpan where I changed only one character
+	for {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+
+		previousRune := s.previousRune()
+
+		s.writeRune(r) // after this call, r would be returned by s.previousRune()
+
+		if r == '"' && previousRune != '\\' {
+			break
+		}
+	}
+
+	return nil
 }
 
 func inHTMLEndTagName(s *state) error {
@@ -561,4 +677,27 @@ func isASCIIWhitespace(r rune) bool {
 		return true
 	}
 	return false
+}
+
+func isLegalHTMLAttributeNameRune(r rune) bool {
+	// https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
+	if unicode.IsControl(r) { // should include tab
+		return false
+	}
+
+	switch r {
+	case ' ', '"', '\'', '>', '/', '=':
+		return false
+	}
+
+	// Full list of noncharacters: https://infra.spec.whatwg.org/#noncharacter
+	table := unicode.RangeTable{
+		R16: []unicode.Range16{{0xfdd0, 0xfdef, 1}, {0xfffe, 0xffff, 1}},
+		// BUG(adiabatic): Erroneously thinks non-BMP noncharacters are characters
+	}
+	if unicode.In(r, &table) {
+		return false
+	}
+
+	return true
 }
