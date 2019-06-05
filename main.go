@@ -413,11 +413,11 @@ func atLessThan(s *state) error {
 	return s.writeRune(r)
 }
 
+// inHTMLStartTagName …
 func inHTMLStartTagName(s *state) error {
 	// The first (and possibly only) letter of the element name has already been written.
 
 	var p rune
-	//var r rune
 	var err error
 
 	// Are we entering a code element? They’re special because we don’t curl quotes there.
