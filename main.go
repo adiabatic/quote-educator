@@ -156,7 +156,7 @@ func (s *state) AdvanceUntil(stopBefore string) error {
 	return nil
 }
 
-// AdvanceUntilTrue reads and writes from s, stopping only when the peeked-at rune matches a predicate.
+// AdvanceUntilTrue reads and writes from s. When the peeked-at rune doesn’t match the given predicate, it stops. The peeked-at rune remains unread.
 func (s *state) AdvanceUntilTrue(f runePredicate) error {
 	for {
 		p, err := s.peekRune()
@@ -171,7 +171,7 @@ func (s *state) AdvanceUntilTrue(f runePredicate) error {
 	}
 }
 
-// AdvanceUntilFalse reads and writes from s, stopping only when the peeked-at rune doesn’t a predicate.
+// AdvanceUntilFalse reads and writes from s. When the peeked-at rune matches the given predicate, it stops. The peeked-at rune remains unread.
 func (s *state) AdvanceUntilFalse(f runePredicate) error {
 	g := func(r rune) bool { return !f(r) }
 	return s.AdvanceUntilTrue(g)
@@ -523,7 +523,7 @@ func handleHTMLAttributes(s *state) error {
 		return err
 	}
 
-	// Move past the whitespace until we get to a ", ', or the characters of an unquoted attribute value.
+	// Move past any existing whitespace until we get to a ", ', or the characters of an unquoted attribute value.
 	// The full rules: https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
 	if isASCIIWhitespace(p) {
 		err = s.AdvanceUntilFalse(isASCIIWhitespace)
