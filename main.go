@@ -231,17 +231,19 @@ type callback func(s *state) error
 
 // These functions are sorted by character. That is, atYAMLFrontMatter (starts with ---) should come shortly after atHyphen (-).
 
-// initial contains the main loop of the parser.
+// initial contains the main loop of the parser. It peeks at the next rune and checks to see if it gets special processing according to the whatDo map. If special processing may be called for, a special-processing function will be called. Otherwise, it just reads and writes the peeked-at rune.
+//
+// Ends and returns if an error is encountered, although that may just be an io.EOF.
 func initial(s *state) error {
-	var r rune
+	var p rune
 	var err error
 	for err == nil {
-		r, err = s.peekRune()
+		p, err = s.peekRune()
 		if err != nil {
 			return err
 		}
 
-		if f, ok := s.whatDo[r]; ok {
+		if f, ok := s.whatDo[p]; ok {
 			err = f(s)
 		} else {
 			s.writeRune(s.mustReadRune())
