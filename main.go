@@ -231,6 +231,7 @@ type callback func(s *state) error
 
 // These functions are sorted by character. That is, atYAMLFrontMatter (starts with ---) should come shortly after atHyphen (-).
 
+// initial contains the main loop of the parser.
 func initial(s *state) error {
 	var r rune
 	var err error
@@ -387,6 +388,9 @@ func inTripleBacktickCodeBlock(s *state) error {
 	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
 
+// atLessThan should be called when readRune will return '<'. It reads one rune of '<', writes it, and then peeks beyond that rune to figure out whether the < is being used as a less-than sign or the start of an HTML tag.
+//
+// When atLessThan returns, readRune will return the rune right after the < (or an error).
 func atLessThan(s *state) error {
 	r := s.mustReadRune()
 	if r != '<' {
@@ -395,34 +399,31 @@ func atLessThan(s *state) error {
 
 	s.writeRune(r)
 
-	r, err := s.readRune()
+	p, err := s.peekRune()
 	if err != nil {
 		return err
 	}
 
 	// https://html.spec.whatwg.org/multipage/syntax.html#syntax-tag-name notwithstanding, no elements are ever going to *start* with a *number*, right?
-	if unicode.IsLetter(r) {
-		s.writeRune(r)
+	if unicode.IsLetter(p) {
 		return inHTMLStartTagName(s)
 	}
 
-	if r == '/' {
-		s.writeRune(r)
+	if p == '/' {
 		return inHTMLEndTagName(s)
 	}
-	return s.writeRune(r)
+
+	return s.writeRune(s.mustReadRune())
 }
 
-// inHTMLStartTagName …
+// inHTMLStartTagName reads and writes an HTML start tag. When it returns a nil error, the previous rune is either > (if it had no attributes) or the last character of whitespace before the first attribute name.
 func inHTMLStartTagName(s *state) error {
-	// The first (and possibly only) letter of the element name has already been written.
-
 	var p rune
 	var err error
 
 	// Are we entering a code element? They’re special because we don’t curl quotes there.
 	codeElementsEnteredAtStart := s.codeElementsEntered
-	if s.previousRune() == 'c' && s.PeekEquals("ode") {
+	if s.PeekEquals("code") {
 		s.codeElementsEntered++
 	}
 
