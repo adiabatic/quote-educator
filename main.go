@@ -253,6 +253,9 @@ func initial(s *state) error {
 	return err
 }
 
+// atBackslash reads an assumed-to-exist \ and writes both it and the rune after it without further processing or examination.
+//
+// When atBackslash returns, readRune will return the rune after the rune after the backslash.
 func atBackslash(s *state) error {
 	r := s.mustReadRune()
 	if r != '\\' {
@@ -260,14 +263,18 @@ func atBackslash(s *state) error {
 	}
 
 	s.writeRune(r)
+
 	r, err := s.readRune()
 	if err != nil {
 		return err
 	}
+
 	s.writeRune(r)
+
 	return err
 }
 
+// atDoubleQuote reads an assumed-to-exist " or “. It then writes a “ and hands processing off to inDoubleQuotes.
 func atDoubleQuote(s *state) error {
 	r := s.mustReadRune()
 	if !(r == '"' || r == '“') {
