@@ -9,3 +9,4 @@ I make no claim that `quote-educator` is good, but it attempts to handle at leas
 - Prefer `r` as a variable name for a rune you’ve read.
 - Prefer `p` as a variable name for a rune you’ve peeked at.
 - Corollary: If you ever find yourself writing a variable named `p`, think long and hard whether that’s the right idea.
+- Prefer `s.whatDo[p]` to `s.whatDo[r]`. You shouldn’t need to unread runes. For consistency’s sake, avoid structuring your rune-getting in such a way that you’ll need to unread runes.
