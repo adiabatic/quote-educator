@@ -285,28 +285,35 @@ func atDoubleQuote(s *state) error {
 	return inDoubleQuotes(s)
 }
 
+// inDoubleQuotes reads and writes runes inside double quotes, looking for some sort of closing double quote (either " or ”).
+//
+// Ends and returns if a closing double quote is read or an error is encountered, although that may just be an io.EOF. The next rune to be read will be the one after the closing double quote.
 func inDoubleQuotes(s *state) error {
-	var r rune
+	var p rune
 	var err error
 	for err == nil {
-		r, err = s.readRune()
+		p, err = s.peekRune()
 		if err != nil {
 			break
 		}
 
-		if r == '"' || r == '”' {
+		if p == '"' || p == '”' {
+			// normally we immediately write the freshly-read previously-peeked-at rune, but we want a ” in the output whether the input had a "or ”, so we just drop the maybe-educated freshly-read previously-peeked-at quote-mark rune on the floor
+			_ = s.mustReadRune()
 			return s.writeRune('”')
-		} else if f, ok := s.whatDo[r]; ok {
-			s.unreadRune()
+		} else if f, ok := s.whatDo[p]; ok {
 			err = f(s)
 		} else {
-			s.writeRune(r)
+			s.writeRune(s.mustReadRune())
 		}
 	}
 
 	return err
 }
 
+// atSingleQuote reads an assumed-to-exist ' or ‘ rune. It then writes a ‘ or ’ depending on whether the previous rune was a letter or not, as a ' right after a letter is probably being used as an apostrophe.
+// TODO(adiabatic): Doesn’t do the right thing for cases like <a>Mark Twain</a>'s autobiography.
+// BUG(adiabatic): This function will go to the inSingleQuotes state if the rune was ‘ and was preceded by a letter. Could be bad for Arabic in romanization, Hawaiian, and Maori (among others).
 func atSingleQuote(s *state) error {
 	r := s.mustReadRune()
 	if !(r == '\'' || r == '‘') {
