@@ -356,6 +356,9 @@ func inSingleQuotes(s *state) error {
 	return err
 }
 
+// atHyphen reads an assumed-to-exist - and checks to see if it could be the start of YAML front matter or not.
+//
+// When it returns, if the rune was just a hyphen, the next character to be read will be the character after the hyphen. However, if the hyphen was the first of a YAML front matter block, the next character to be read will be whatever inYAMLFrontMatter says it will be.
 func atHyphen(s *state) error {
 	r := s.mustReadRune()
 	if r != '-' {
@@ -370,6 +373,9 @@ func atHyphen(s *state) error {
 	return s.writeRune(r)
 }
 
+// inYAMLFrontMatter just reads and writes until it gets past a --- all on its own line.
+//
+// When inYAMLFrontMatter returns, the next rune to be read will be the first rune on the line after the closing ---.
 func inYAMLFrontMatter(s *state) error {
 	return s.AdvanceThrough("\n---\n") // Just don’t do anything
 }
