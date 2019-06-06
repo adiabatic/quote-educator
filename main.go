@@ -141,9 +141,7 @@ func (s *state) AdvanceBy(n int) error {
 // A runePredicate returns true when the given rune exhibits some property.
 type runePredicate func(rune) bool
 
-// AdvanceUntil reads and writes runes until stopBefore is just ahead of the current offset.
-//
-// In other words, once AdvanceUntil returns with a non-nil error, the next rune read will match the start of stopBefore.
+// AdvanceUntil reads and writes runes until the next rune to be read is the first rune in stopBefore.
 func (s *state) AdvanceUntil(stopBefore string) error {
 	for !s.PeekEquals(stopBefore) {
 		r, err := s.readRune()
@@ -177,6 +175,7 @@ func (s *state) AdvanceUntilFalse(f runePredicate) error {
 	return s.AdvanceUntilTrue(g)
 }
 
+// AdvanceThrough reads and writes runes until the next rune to be read is the one right after stopAfter.
 func (s *state) AdvanceThrough(stopAfter string) error {
 	if err := s.AdvanceUntil(stopAfter); err != nil {
 		return err
