@@ -328,21 +328,28 @@ func atSingleQuote(s *state) error {
 	return inSingleQuotes(s)
 }
 
+// inSingleQuotes reads and writes runes inside single quotes, looking for some sort of closing single quote (either ' or ’).
+//
+// Ends and returns if a closing single quote is read or an error is encountered, although that may just be an io.EOF. The next rune to be read will be the one just after the closing single quote.
+//
+// BUG(adiabatic): will mistakenly identify «don't» as a closing single quote
 func inSingleQuotes(s *state) error {
-	var r rune
+	var p rune
 	var err error
 	for err == nil {
-		r, err = s.readRune()
+		p, err = s.peekRune()
 		if err != nil {
 			break
 		}
 
-		if r == '\'' || r == '’' {
+		if p == '\'' || p == '’' {
+			// deliberately drop it on the floor (see comment in inDoubleQuotes)
+			_ = s.mustReadRune()
 			return s.writeRune('’')
-		} else if f, ok := s.whatDo[r]; ok {
+		} else if f, ok := s.whatDo[p]; ok {
 			err = f(s)
 		} else {
-			s.writeRune(r)
+			s.writeRune(s.mustReadRune())
 		}
 	}
 	return err
