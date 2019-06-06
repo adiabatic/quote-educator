@@ -379,6 +379,7 @@ func inYAMLFrontMatter(s *state) error {
 	return s.AdvanceThrough("\n---\n") // Just don’t do anything
 }
 
+// atBacktick reads an assumed-to-exist `. It then peeks ahead and behind to figure out whether this is the start of a single-backtick code span or a triple-backtick code block.
 func atBacktick(s *state) error {
 	r := s.mustReadRune()
 	if r != '`' {
@@ -394,6 +395,7 @@ func atBacktick(s *state) error {
 	return inSingleBacktickCodeSpan(s)
 }
 
+// inSingleBacktickCodeSpan reads and writes runes inside a single-backtick code span. When it returns, the next rune to be read will be the one after the closing backtick.
 func inSingleBacktickCodeSpan(s *state) error {
 	for {
 		r, err := s.readRune()
@@ -408,6 +410,10 @@ func inSingleBacktickCodeSpan(s *state) error {
 		if r == '`' && previousRune != '\\' {
 			break
 		}
+	}
+
+	if v := s.previousRune(); v != '`' {
+		return fmt.Errorf("postcondition failed: expected the immediately previous rune to be a `. got: «%s» (%U)", string(v), v)
 	}
 
 	return nil
