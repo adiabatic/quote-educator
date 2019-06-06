@@ -419,6 +419,9 @@ func inSingleBacktickCodeSpan(s *state) error {
 	return nil
 }
 
+// inTripleBacktickCodeBlock just reads and writes until it gets past a ``` all on its own line.
+//
+// When inTripleBacktickCodeBlock returns, the next rune to be read will be the first rune on the line after the closing ```.
 func inTripleBacktickCodeBlock(s *state) error {
 	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
