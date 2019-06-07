@@ -526,70 +526,79 @@ func handleHTMLAttributes(s *state) error {
 	var p rune
 	var err error
 
-	p = s.mustPeekRune()
+	for err == nil {
 
-	// log.Printf("The first character of the HTML attribute name is: «%s» (%U)", string(p), p)
+		p = s.mustPeekRune()
 
-	// Churn through the attribute name.
-	err = s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
-	if err != nil {
-		return err
-	}
+		if isASCIIWhitespace(p) {
+			err = s.AdvanceUntilFalse(isASCIIWhitespace)
+			if err != nil {
+				return err
+			}
+		}
 
-	// Churn through any whitespace until we get to what should be either a > or =.
-	if isASCIIWhitespace(s.mustPeekRune()) {
-		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+		// log.Printf("The first character of the HTML attribute name is: «%s» (%U)", string(p), p)
+
+		// Churn through the attribute name.
+		err = s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
 		if err != nil {
 			return err
 		}
-	}
 
-	if p = s.mustPeekRune(); !(p == '>' || p == '=') {
-		log.Fatalf("postcondition failed. p was expected to be either > or =, but was %s instead", string(p))
-	}
+		// Churn through any whitespace until we get to what should be either a > or =.
+		if isASCIIWhitespace(s.mustPeekRune()) {
+			err = s.AdvanceUntilFalse(isASCIIWhitespace)
+			if err != nil {
+				return err
+			}
+		}
 
-	if p == '>' {
-		// no more attributes to handle
-		return nil
-	}
+		if p = s.mustPeekRune(); !(p == '>' || p == '=') {
+			log.Fatalf("postcondition failed. p was expected to be either > or =, but was %s instead", string(p))
+		}
 
-	// p has to be =, then. Pump it.
-	s.writeRune(s.mustReadRune())
+		if p == '>' {
+			// no more attributes to handle
+			return nil
+		}
 
-	p, err = s.peekRune()
-	if err != nil {
-		return err
-	}
+		// p has to be =, then. Pump it.
+		s.writeRune(s.mustReadRune())
 
-	// Move past any existing whitespace until we get to a ", ', or the characters of an unquoted attribute value.
-	// The full rules: https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
-	if isASCIIWhitespace(p) {
-		err = s.AdvanceUntilFalse(isASCIIWhitespace)
+		p, err = s.peekRune()
 		if err != nil {
 			return err
 		}
+
+		// Move past any existing whitespace until we get to a ", ', or the characters of an unquoted attribute value.
+		// The full rules: https://html.spec.whatwg.org/multipage/syntax.html#syntax-attributes
+		if isASCIIWhitespace(p) {
+			err = s.AdvanceUntilFalse(isASCIIWhitespace)
+			if err != nil {
+				return err
+			}
+		}
+
+		// What kind of attribute value do we have? Unquoted, single-quoted, or double-quoted?
+
+		p, err = s.peekRune()
+		if err != nil {
+			return err
+		}
+
+		switch {
+		case p == '"':
+			s.writeRune(s.mustReadRune())
+			err = inDoubleQuotedAttributeValue(s)
+		case p == '\'':
+			s.writeRune(s.mustReadRune())
+			err = inSingleQuotedAttributeValue(s)
+		case isLegalHTMLAttributeValueUnquoted(p):
+			err = inUnquotedAttributeValue(s)
+		default:
+			err = fmt.Errorf("Got some weird rune that’s starting an HTML attribute value: «%s» (%U)", string(p), p)
+		}
 	}
-
-	// What kind of attribute value do we have? Unquoted, single-quoted, or double-quoted?
-
-	p, err = s.peekRune()
-	if err != nil {
-		return err
-	}
-
-	switch {
-	case p == '"':
-		s.writeRune(s.mustReadRune())
-		err = inDoubleQuotedAttributeValue(s)
-	case p == '\'':
-		s.writeRune(s.mustReadRune())
-		err = inSingleQuotedAttributeValue(s)
-	case isLegalHTMLAttributeValueUnquoted(p):
-		err = inUnquotedAttributeValue(s)
-	default:
-		err = fmt.Errorf("Got some weird rune that’s starting an HTML attribute value: «%s» (%U)", string(p), p)
-	}
-
 	return err
 }
 

@@ -164,6 +164,12 @@ func TestStrings(t *testing.T) {
 			"<h2 id=jacks-oatmeal>Jack's Oatmeal</h2>",
 			"<h2 id=jacks-oatmeal>Jack’s Oatmeal</h2>",
 		},
+
+		// Handle multiple attributes
+		{
+			`<abbr id=yaml title="YAML Ain't Markup Language">YAML</abbr> ain't the worst.`,
+			`<abbr id=yaml title="YAML Ain't Markup Language">YAML</abbr> ain’t the worst.`,
+		},
 	}
 
 	for _, row := range rows {
