@@ -397,6 +397,7 @@ func atBacktick(s *state) error {
 
 // inSingleBacktickCodeSpan reads and writes runes inside a single-backtick code span. When it returns, the next rune to be read will be the one after the closing backtick.
 func inSingleBacktickCodeSpan(s *state) error {
+	// TODO(adiabatic): this function is widely copied, à la ⌘C. Consider consolidating.
 	for {
 		r, err := s.readRune()
 		if err != nil {
@@ -480,41 +481,40 @@ func inHTMLStartTagName(s *state) error {
 		}
 
 		if isASCIIWhitespace(p) || p == '>' {
-			log.Printf("At the break point, p was: %s (%U)", string(p), p)
+			// log.Printf("The first not-a-start-tag rune was «%s» (%U)", string(p), p)
 			break
 		}
 
 		s.writeRune(s.mustReadRune())
 	}
 
-	p, err = s.peekRune()
-	if err != nil {
-		return err
-	}
-	if !(p == '>' || isASCIIWhitespace(p)) {
+	if p = s.mustPeekRune(); !(p == '>' || isASCIIWhitespace(p)) {
 		log.Fatalf("postcondition failed. was expecting p to be either > or whitespace; was %s (%U)", string(p), p)
 	}
 
 	// Now we need to advance past any whitespace so s.peekRune() gives us either an attribute name or >.
-	{
-		err = s.advanceOneMore(s.AdvanceUntilFalse(isASCIIWhitespace))
-		if err != nil {
-			return err
-		}
+	err = s.AdvanceUntilFalse(isASCIIWhitespace)
+	if err != nil {
+		return err
 	}
 
-	log.Printf("After advancing through the whitespace, op is %s%s",
-		string(s.previousRune()), string(s.mustPeekRune()))
-
-	if s.previousRune() == '>' {
+	p = s.mustPeekRune()
+	if p == '>' {
 		if s.codeElementsEntered > codeElementsEnteredAtStart {
 			return inCodeElement(s)
 		}
-	} else if unicode.IsLetter(s.previousRune()) {
+	} else if unicode.IsLetter(p) {
 		err = handleHTMLAttributes(s)
 		if err != nil {
 			return err
 		}
+		p, err = s.peekRune()
+		if err != nil {
+			return err
+		}
+		if s.codeElementsEntered > codeElementsEnteredAtStart {
+			return inCodeElement(s)
+		} // no special handling for non-code HTML attributes
 	}
 
 	// TODO: Handle attributes (that is, don’t curl attribute quotes)
@@ -523,42 +523,37 @@ func inHTMLStartTagName(s *state) error {
 
 // handleHTMLAttributes churns through HTML attributes. When it ends, s.peekRune() will return >.
 func handleHTMLAttributes(s *state) error {
-	// s.previousRune() is the first letter of the attribute name
-	err := s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
+	var p rune
+	var err error
+
+	p = s.mustPeekRune()
+
+	// log.Printf("The first character of the HTML attribute name is: «%s» (%U)", string(p), p)
+
+	// Churn through the attribute name.
+	err = s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
 	if err != nil {
 		return err
 	}
 
-	p, err := s.peekRune()
-	if err != nil {
-		return err
-	}
-
-	// Move past the whitespace until we get to what should be either a > or =.
-	if isASCIIWhitespace(p) {
+	// Churn through any whitespace until we get to what should be either a > or =.
+	if isASCIIWhitespace(s.mustPeekRune()) {
 		err = s.AdvanceUntilFalse(isASCIIWhitespace)
 		if err != nil {
 			return err
 		}
 	}
 
-	// check postcondition
-	p, err = s.peekRune()
-	if err != nil {
-		return err
-	}
-	if !(p == '>' || p == '=') {
+	if p = s.mustPeekRune(); !(p == '>' || p == '=') {
 		log.Fatalf("postcondition failed. p was expected to be either > or =, but was %s instead", string(p))
 	}
 
-	log.Println(string(s.mustPeekRune()))
-
 	if p == '>' {
+		// no more attributes to handle
 		return nil
 	}
 
-	// p has to be =, then.
-
+	// p has to be =, then. Pump it.
 	s.writeRune(s.mustReadRune())
 
 	p, err = s.peekRune()
@@ -575,7 +570,7 @@ func handleHTMLAttributes(s *state) error {
 		}
 	}
 
-	// What kind of attribute value do we have?
+	// What kind of attribute value do we have? Unquoted, single-quoted, or double-quoted?
 
 	p, err = s.peekRune()
 	if err != nil {
@@ -586,12 +581,11 @@ func handleHTMLAttributes(s *state) error {
 	case p == '"':
 		s.writeRune(s.mustReadRune())
 		err = inDoubleQuotedAttributeValue(s)
+	case p == '\'':
+		s.writeRune(s.mustReadRune())
+		err = inSingleQuotedAttributeValue(s)
 		// case unicode.IsLetter(p), unicode.IsNumber(p), p == '/':
 		// default:
-	}
-
-	if err != nil {
-		return err
 	}
 
 	return err
@@ -610,6 +604,26 @@ func inDoubleQuotedAttributeValue(s *state) error {
 		s.writeRune(r) // after this call, r would be returned by s.previousRune()
 
 		if r == '"' && previousRune != '\\' {
+			break
+		}
+	}
+
+	return nil
+}
+
+func inSingleQuotedAttributeValue(s *state) error {
+	// yes, this is totally copied from inDoubleQuotedAttributeValue where I changed only one character
+	for {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+
+		previousRune := s.previousRune()
+
+		s.writeRune(r) // after this call, r would be returned by s.previousRune()
+
+		if r == '\'' && previousRune != '\\' {
 			break
 		}
 	}

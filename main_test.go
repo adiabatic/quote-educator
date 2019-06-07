@@ -146,6 +146,18 @@ func TestStrings(t *testing.T) {
 			`<abbr title="YAML Ain't Markup Language">YAML</abbr> isn't bad.`,
 			`<abbr title="YAML Ain't Markup Language">YAML</abbr> isn’t bad.`,
 		},
+
+		// Handle double-quoted attributes with backslashed escapes
+		{
+			`<a title="Nick \"Goose\" Bradshaw">Anthony Edwards's role</a>`,
+			`<a title="Nick \"Goose\" Bradshaw">Anthony Edwards’s role</a>`,
+		},
+
+		// Handle single-quoted attributes
+		{
+			"<label placeholder='your dog\\'s name'>Fido of Green's Hill",
+			"<label placeholder='your dog\\'s name'>Fido of Green’s Hill",
+		},
 	}
 
 	for _, row := range rows {
