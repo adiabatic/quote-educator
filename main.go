@@ -426,7 +426,7 @@ func inTripleBacktickCodeBlock(s *state) error {
 	return s.AdvanceThrough("\n```\n") // Just don’t do anything here, either
 }
 
-// atLessThan should be called when readRune will return '<'. It reads one rune of '<', writes it, and then peeks beyond that rune to figure out whether the < is being used as a less-than sign or the start of an HTML tag.
+// atLessThan reads an assumed-to-exist <. It then peeks ahead to figure out whether the < is a mere less-than sign or the start of an HTML tag.
 //
 // When atLessThan returns, readRune will return the rune right after the < (or an error).
 func atLessThan(s *state) error {
@@ -454,7 +454,11 @@ func atLessThan(s *state) error {
 	return s.writeRune(s.mustReadRune())
 }
 
-// inHTMLStartTagName reads and writes an HTML start tag. When it returns a nil error, the previous rune is either > (if it had no attributes) or the last character of whitespace before the first attribute name.
+// inHTMLStartTagName reads and writes an HTML start tag.
+//
+// When it finishes, the current rune is either
+// the rune right after the tag’s closing >
+// or the first character of the first attribute’s name.
 func inHTMLStartTagName(s *state) error {
 	var p rune
 	var err error
@@ -517,7 +521,7 @@ func inHTMLStartTagName(s *state) error {
 	return err
 }
 
-// handleHTMLAttributes does the obvious. When it ends, s.peekRune() will return >.
+// handleHTMLAttributes churns through HTML attributes. When it ends, s.peekRune() will return >.
 func handleHTMLAttributes(s *state) error {
 	// s.previousRune() is the first letter of the attribute name
 	err := s.AdvanceUntilFalse(isLegalHTMLAttributeNameRune)
