@@ -584,13 +584,16 @@ func handleHTMLAttributes(s *state) error {
 	case p == '\'':
 		s.writeRune(s.mustReadRune())
 		err = inSingleQuotedAttributeValue(s)
-		// case unicode.IsLetter(p), unicode.IsNumber(p), p == '/':
-		// default:
+	case isLegalHTMLAttributeValueUnquoted(p):
+		err = inUnquotedAttributeValue(s)
+	default:
+		err = fmt.Errorf("Got some weird rune that’s starting an HTML attribute value: «%s» (%U)", string(p), p)
 	}
 
 	return err
 }
 
+// inDoubleQuotedAttributeCodeSpan reads and writes runes inside of a double-quoted HTML attribute value. When it returns, the next rune to be read will be the one after the closing double quote.
 func inDoubleQuotedAttributeValue(s *state) error {
 	// yes, this is totally copied from inSingleBacktickCodeSpan where I changed only one character
 	for {
@@ -611,6 +614,7 @@ func inDoubleQuotedAttributeValue(s *state) error {
 	return nil
 }
 
+// inSingleQuotedAttributeCodeSpan reads and writes runes inside of a single-quoted HTML attribute value. When it returns, the next rune to be read will be the one after the closing single quote.
 func inSingleQuotedAttributeValue(s *state) error {
 	// yes, this is totally copied from inDoubleQuotedAttributeValue where I changed only one character
 	for {
@@ -626,6 +630,26 @@ func inSingleQuotedAttributeValue(s *state) error {
 		if r == '\'' && previousRune != '\\' {
 			break
 		}
+	}
+
+	return nil
+}
+
+// inUnquotedAttributeValue reads and writes runes until
+func inUnquotedAttributeValue(s *state) error {
+
+	// Note that this is more peek-heavy than the very-similar in{Single,Double}QuotedAttributeValue functions. This is because we want to end the function when the first not-part-of-the-value rune shows up. For single- and double-quoted values this is the predictable ' or ", but for unquoted attribute values it could be very different, like either whitespace or a >. We want to end the function when the first unpredictable rune shows up in the input and leave it to be read.
+	for {
+		p, err := s.peekRune()
+		if err != nil {
+			return err
+		}
+
+		if !isLegalHTMLAttributeValueUnquoted(p) {
+			break
+		}
+
+		s.writeRune(s.mustReadRune())
 	}
 
 	return nil
@@ -757,4 +781,24 @@ func isLegalHTMLAttributeNameRune(r rune) bool {
 	}
 
 	return true
+}
+
+func isLegalHTMLAttributeValueUnquoted(r rune) bool {
+	if isASCIIWhitespace(r) {
+		return false
+	}
+
+	switch r {
+	case '"', '\'', '=', '<', '>', '`':
+		return false
+	}
+
+	// Ordinarily I’d actually check here to see if the rune is legal in an quoted attribute value, but The Standard says:
+	//
+	// “Attribute values are a mixture of text and character references, except with the additional restriction that the text cannot contain an ambiguous ampersand.”
+	// — https://html.spec.whatwg.org/multipage/syntax.html#attributes-2
+	//
+	// So, like, anything goes? I guess so.
+	return true
+
 }

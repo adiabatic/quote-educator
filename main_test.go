@@ -158,6 +158,12 @@ func TestStrings(t *testing.T) {
 			"<label placeholder='your dog\\'s name'>Fido of Green's Hill",
 			"<label placeholder='your dog\\'s name'>Fido of Green’s Hill",
 		},
+
+		// Handle unquoted attributes
+		{
+			"<h2 id=jacks-oatmeal>Jack's Oatmeal</h2>",
+			"<h2 id=jacks-oatmeal>Jack’s Oatmeal</h2>",
+		},
 	}
 
 	for _, row := range rows {
