@@ -711,9 +711,16 @@ func main() {
 	var whither = os.Stdout
 
 	rewriteInPlace := flag.Bool("w", false, "write result to (source) file instead of stdout")
-	flag.Parse()
-	continueRewriteThings := false
+	showHelp := flag.Bool("h", false, "Show help")
 
+	flag.Parse()
+
+	if showHelp != nil && *showHelp {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
+	continueRewriteThings := false
 	if rewriteInPlace != nil && *rewriteInPlace {
 		switch len(flag.Args()) {
 		case 0:
