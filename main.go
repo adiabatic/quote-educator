@@ -517,7 +517,6 @@ func inHTMLStartTagName(s *state) error {
 		} // no special handling for non-code HTML attributes
 	}
 
-	// TODO: Handle attributes (that is, don’t curl attribute quotes)
 	return err
 }
 
