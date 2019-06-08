@@ -324,6 +324,11 @@ func atSingleQuote(s *state) error {
 		return s.writeRune('’')
 	}
 
+	if r == '\'' && (s.previousRune() == '>' || s.previousRune() == ')') {
+		log.Printf("Found the string «%s'»; cannot tell whether this is a quote mark or an apostrophe. Leaving unchanged. Manually inspect subsequent quote marks.", string(s.previousRune()))
+		return s.writeRune('\'')
+	}
+
 	s.writeRune('‘')
 	return inSingleQuotes(s)
 }
