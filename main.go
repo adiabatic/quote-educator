@@ -402,7 +402,11 @@ func atBacktick(s *state) error {
 
 // inSingleBacktickCodeSpan reads and writes runes inside a single-backtick code span. When it returns, the next rune to be read will be the one after the closing backtick.
 func inSingleBacktickCodeSpan(s *state) error {
-	// TODO(adiabatic): this function is widely copied, à la ⌘C. Consider consolidating.
+	return inSpanEndingWithSingleUnescapedRune(s, '`')
+}
+
+// inSpanEndingWithSingleUnescapedRune reads and writes runes until it gets to a sentinel character not preceded by a backslash. When it returns, the next rune to be read will be the one after the sentinel value.
+func inSpanEndingWithSingleUnescapedRune(s *state, sentinel rune) error {
 	for {
 		r, err := s.readRune()
 		if err != nil {
@@ -413,13 +417,13 @@ func inSingleBacktickCodeSpan(s *state) error {
 
 		s.writeRune(r) // after this call, r would be returned by s.previousRune()
 
-		if r == '`' && previousRune != '\\' {
+		if r == sentinel && previousRune != '\\' {
 			break
 		}
 	}
 
-	if v := s.previousRune(); v != '`' {
-		return fmt.Errorf("postcondition failed: expected the immediately previous rune to be a `. got: «%s» (%U)", string(v), v)
+	if v := s.previousRune(); v != sentinel {
+		return fmt.Errorf("postcondition failed: expected the immediately previous rune to be a %s. got: «%s» (%U)", string(sentinel), string(v), v)
 	}
 
 	return nil
@@ -608,44 +612,12 @@ func handleHTMLAttributes(s *state) error {
 
 // inDoubleQuotedAttributeCodeSpan reads and writes runes inside of a double-quoted HTML attribute value. When it returns, the next rune to be read will be the one after the closing double quote.
 func inDoubleQuotedAttributeValue(s *state) error {
-	// yes, this is totally copied from inSingleBacktickCodeSpan where I changed only one character
-	for {
-		r, err := s.readRune()
-		if err != nil {
-			return err
-		}
-
-		previousRune := s.previousRune()
-
-		s.writeRune(r) // after this call, r would be returned by s.previousRune()
-
-		if r == '"' && previousRune != '\\' {
-			break
-		}
-	}
-
-	return nil
+	return inSpanEndingWithSingleUnescapedRune(s, '"')
 }
 
 // inSingleQuotedAttributeCodeSpan reads and writes runes inside of a single-quoted HTML attribute value. When it returns, the next rune to be read will be the one after the closing single quote.
 func inSingleQuotedAttributeValue(s *state) error {
-	// yes, this is totally copied from inDoubleQuotedAttributeValue where I changed only one character
-	for {
-		r, err := s.readRune()
-		if err != nil {
-			return err
-		}
-
-		previousRune := s.previousRune()
-
-		s.writeRune(r) // after this call, r would be returned by s.previousRune()
-
-		if r == '\'' && previousRune != '\\' {
-			break
-		}
-	}
-
-	return nil
+	return inSpanEndingWithSingleUnescapedRune(s, '\'')
 }
 
 // inUnquotedAttributeValue reads and writes runes until
