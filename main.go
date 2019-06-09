@@ -770,7 +770,7 @@ func main() {
 	}
 	err = whither.Sync()
 	if err != nil {
-		log.Printf("couldn’t flush stdout: %v", err)
+		log.Printf("couldn’t flush to destination: %v", err)
 		os.Exit(2)
 	}
 }
