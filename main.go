@@ -757,6 +757,9 @@ func main() {
 		// now that we’ve got the input all slurped up, let’s set up the out piping
 
 		whither, err = os.OpenFile(flag.Args()[0], os.O_WRONLY|os.O_TRUNC, 0755) // BUG(adiabatic): cargo-culting the “0755”; I don’t understand masks
+		if err != nil {
+			log.Printf("Couldn’t open file «%s»: %s", flag.Args()[0], err)
+		}
 
 	}
 
