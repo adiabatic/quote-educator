@@ -797,6 +797,24 @@ func isLegalHTMLAttributeNameRune(r rune) bool {
 	table := unicode.RangeTable{
 		R16: []unicode.Range16{{0xfdd0, 0xfdef, 1}, {0xfffe, 0xffff, 1}},
 		// BUG(adiabatic): Erroneously thinks non-BMP noncharacters are characters
+		R32: []unicode.Range32{
+			{0x1fffe, 0x1ffff, 1},
+			{0x2fffe, 0x2ffff, 1},
+			{0x3fffe, 0x3ffff, 1},
+			{0x4fffe, 0x4ffff, 1},
+			{0x5fffe, 0x5ffff, 1},
+			{0x6fffe, 0x6ffff, 1},
+			{0x7fffe, 0x7ffff, 1},
+			{0x8fffe, 0x8ffff, 1},
+			{0x9fffe, 0x9ffff, 1},
+			{0xafffe, 0xaffff, 1},
+			{0xbfffe, 0xbffff, 1},
+			{0xcfffe, 0xcffff, 1},
+			{0xdfffe, 0xdffff, 1},
+			{0xefffe, 0xeffff, 1},
+			{0xffffe, 0xfffff, 1},
+			{0x10fffe, 0x10ffff, 1},
+		},
 	}
 	if unicode.In(r, &table) {
 		return false
