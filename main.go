@@ -62,12 +62,39 @@ func (s *state) readRune() (rune, error) {
 	return r, nil
 }
 
-func (s *state) previousRune() rune {
+func (s *state) mustPreviousRune() rune {
 	r, size := utf8.DecodeLastRune(s.w.Bytes())
 	if size == 0 {
 		panic("Couldn’t decode the last rune in s.w.Bytes()")
 	}
 	return r
+}
+
+func (s *state) previousRune() (rune, error) {
+	r, size := utf8.DecodeLastRune(s.w.Bytes())
+	if size == 0 {
+		return 0, errors.New("BOF")
+	}
+	return r, nil
+}
+
+func (s *state) previousRuneMatches(f func(rune) bool) bool {
+	r, err := s.previousRune()
+	if err != nil {
+		return false
+	}
+	return f(r)
+}
+
+func (s *state) previousRuneMatchesAny(candidates ...rune) bool {
+	for _, candidate := range candidates {
+		if r, err := s.previousRune(); err != nil {
+			if r == candidate {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *state) mustReadRune() rune {
@@ -320,12 +347,12 @@ func atSingleQuote(s *state) error {
 		return fmt.Errorf("Expecting a single quote, either curly or straight. got: «%s» (%U)", string(r), r)
 	}
 
-	if unicode.IsLetter(s.previousRune()) {
+	if s.previousRuneMatches(unicode.IsLetter) {
 		return s.writeRune('’')
 	}
 
-	if r == '\'' && (s.previousRune() == '>' || s.previousRune() == ')') {
-		log.Printf("Found the string «%s'»; cannot tell whether this is a quote mark or an apostrophe. Leaving unchanged. Manually inspect subsequent quote marks.", string(s.previousRune()))
+	if r == '\'' && s.previousRuneMatchesAny('>', ')') {
+		log.Printf("Found the string «%s'»; cannot tell whether this is a quote mark or an apostrophe. Leaving unchanged. Manually inspect subsequent quote marks.", string(s.mustPreviousRune()))
 		return s.writeRune('\'')
 	}
 
@@ -391,7 +418,7 @@ func atBacktick(s *state) error {
 		return fmt.Errorf("expecting a backtick. got: «%s» (%U)", string(r), r)
 	}
 
-	if s.PeekEquals("``") && s.previousRune() == '\n' {
+	if s.PeekEquals("``") && s.previousRuneMatchesAny('\n') {
 		s.writeRune(r)
 		return inTripleBacktickCodeBlock(s)
 	}
@@ -413,7 +440,7 @@ func inSpanEndingWithSingleUnescapedRune(s *state, sentinel rune) error {
 			return err
 		}
 
-		previousRune := s.previousRune()
+		previousRune := s.mustPreviousRune()
 
 		s.writeRune(r) // after this call, r would be returned by s.previousRune()
 
@@ -422,7 +449,7 @@ func inSpanEndingWithSingleUnescapedRune(s *state, sentinel rune) error {
 		}
 	}
 
-	if v := s.previousRune(); v != sentinel {
+	if v := s.mustPreviousRune(); v != sentinel {
 		return fmt.Errorf("postcondition failed: expected the immediately previous rune to be a %s. got: «%s» (%U)", string(sentinel), string(v), v)
 	}
 

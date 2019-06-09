@@ -65,6 +65,10 @@ func TestStrings(t *testing.T) {
 		// Single-quoty things
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
+		{
+			"'I like traffic lights' isn't an example of an interrogative sentence. 'Is this a sheep?' is.",
+			"‘I like traffic lights’ isn’t an example of an interrogative sentence. ‘Is this a sheep?’ is.",
+		},
 
 		// Things with hyphens
 		{"Ob-La-Di, Ob-La-Da", "Ob-La-Di, Ob-La-Da"},
