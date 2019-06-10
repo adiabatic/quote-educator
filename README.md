@@ -2,7 +2,9 @@
 
 I like having curly quotes in my Markdown files. The trouble is, Markdown files frequently have have quote marks in them that _shouldn’t_ be curled. Ever seen travesties like `print(“Hello, world!”)` in a blog post? A _good_ quote curler wouldn’t do that.
 
-I make no claim that `quote-educator` is good, but it attempts to handle at least some of the edge cases that crop up in Markdown files.
+`quote-educator` assumes your input is in Markdown, possibly with HTML in it.
+
+By default, `quote-educator` reads from standard input and writes to standard output, with any errors or weirdness logged to standard error. If you trust `quote-educator` to not mess up your files (and/or have the files in source control), run <code>quote-educator -w <var>filename</var></code> to rewrite the file with curly quotes.
 
 ## Hacking
 
