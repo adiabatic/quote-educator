@@ -97,6 +97,34 @@ func (s *state) previousRuneMatchesAny(candidates ...rune) bool {
 	return false
 }
 
+func (s *state) previousRunesMatchOne(candidate string) bool {
+	bs := s.w.Bytes()
+	n := utf8.RuneCountInString(candidate)
+	puddle := make([]rune, n)
+
+	for ; n > 0; n-- {
+		r, size := utf8.DecodeLastRune(bs)
+		if size == 0 {
+			return false
+		}
+
+		puddle[n-1] = r
+		bs = bs[:len(bs)-size]
+	}
+
+	return string(puddle) == candidate
+}
+
+func (s *state) previousRunesMatchAny(candidates ...string) (needle string, ok bool) {
+	for _, candidate := range candidates {
+		if s.previousRunesMatchOne(candidate) {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
 func (s *state) mustReadRune() rune {
 	r, err := s.readRune()
 	if err != nil {
@@ -377,7 +405,15 @@ func inSingleQuotes(s *state) error {
 		if p == '\'' || p == '’' {
 			// deliberately drop it on the floor (see comment in inDoubleQuotes)
 			_ = s.mustReadRune()
+
+			if needle, ok := s.previousRunesMatchAny("can", "you", "don"); ok {
+				// this was probably an apostrophe in a contraction
+				log.Printf("The string «%s» was found right before an apostrophe inside of a single-quote quote. The apostrophe was assumed to be part of a contraction. Double-check the output to verify this was the case.", needle)
+				s.writeRune('’')
+				continue
+			}
 			return s.writeRune('’')
+
 		} else if f, ok := s.whatDo[p]; ok {
 			err = f(s)
 		} else {
