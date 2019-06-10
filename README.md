@@ -4,7 +4,7 @@ I like having curly quotes in my Markdown files. The trouble is, Markdown files 
 
 `quote-educator` assumes your input is in Markdown, possibly with HTML in it.
 
-By default, `quote-educator` reads from standard input and writes to standard output, with any errors or weirdness logged to standard error. If you trust `quote-educator` to not mess up your files (and/or have the files in source control), run <code>quote-educator -w <var>filename</var></code> to rewrite the file with curly quotes.
+By default, `quote-educator` reads from standard input and writes to standard output, with any errors or weirdness logged to standard error. If you trust `quote-educator` to not mess up your files (and/or have the files in source control), run `quote-educator -w foo.md` to rewrite the file with curly quotes.
 
 ## Hacking
 
