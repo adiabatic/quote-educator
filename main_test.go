@@ -65,9 +65,17 @@ func TestStrings(t *testing.T) {
 		// Single-quoty things
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
+
+		// Ensure apostrophes after single quotes do the right thing
 		{
 			"'I like traffic lights' isn't an example of an interrogative sentence. 'Is this a sheep?' is.",
 			"‘I like traffic lights’ isn’t an example of an interrogative sentence. ‘Is this a sheep?’ is.",
+		},
+
+		// Ensure apostrophes in single quotes do the right thing
+		{
+			"'So you're saying I can't take sheep on the aeroplane?'",
+			"‘So you’re saying I can’t take sheep on the aeroplane?’",
 		},
 
 		// Things with hyphens
