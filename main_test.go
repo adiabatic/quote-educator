@@ -62,6 +62,12 @@ func TestStrings(t *testing.T) {
 			`“I get better with age.” “Like a cheese, then?”`,
 		},
 
+		// Handle triple nesting
+		{
+			`"'Tell him I said "ow"'. Gotcha!"`,
+			`“‘Tell him I said “ow”’. Gotcha!”`,
+		},
+
 		// Single-quoty things
 		{"Maybe I'd like lunch.", "Maybe I’d like lunch."},
 		{"I like 'scare quotes'.", "I like ‘scare quotes’."},
