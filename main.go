@@ -805,10 +805,14 @@ func main() {
 		log.Printf("%v bytes written before an error occurred: %v", N, err)
 		os.Exit(1)
 	}
-	err = whither.Sync()
-	if err != nil {
-		log.Printf("couldn’t flush to destination: %v", err)
-		os.Exit(2)
+
+	// stdout doesn’t like being synced, so don’t do it
+	if whither != os.Stdout {
+		err = whither.Sync()
+		if err != nil {
+			log.Printf("couldn’t flush to destination: %v", err)
+			os.Exit(2)
+		}
 	}
 }
 
