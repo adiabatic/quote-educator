@@ -563,7 +563,7 @@ func inHTMLStartTagName(s *state) error {
 	}
 
 	if p = s.mustPeekRune(); !(p == '>' || isASCIIWhitespace(p)) {
-		log.Fatalf("postcondition failed. was expecting p to be either > or whitespace; was %s (%U)", string(p), p)
+		log.Fatalf("postcondition failed. was expecting p to be either > or whitespace; was «%s» (%U)", string(p), p)
 	}
 
 	// Now we need to advance past any whitespace so s.peekRune() gives us either an attribute name or >.
@@ -627,7 +627,7 @@ func handleHTMLAttributes(s *state) error {
 		}
 
 		if p = s.mustPeekRune(); !(p == '>' || p == '=') {
-			log.Fatalf("postcondition failed. p was expected to be either > or =, but was %s instead", string(p))
+			log.Fatalf("postcondition failed. p was expected to be either > or =, but was «%s» instead", string(p))
 		}
 
 		if p == '>' {
