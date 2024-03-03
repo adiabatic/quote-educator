@@ -785,7 +785,7 @@ func main() {
 
 	whenceContents, err := ioutil.ReadAll(whence)
 	if err != nil {
-		log.Println("Something went wrong when reading input: ", err)
+		log.Fatalln("Something went wrong when reading input: ", err)
 	}
 
 	whenceReader := bytes.NewReader(whenceContents)
