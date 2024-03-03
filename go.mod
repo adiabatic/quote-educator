@@ -1,3 +1,3 @@
 module github.com/adiabatic/quote-educator
 
-go 1.16
+go 1.22
