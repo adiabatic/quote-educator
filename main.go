@@ -668,7 +668,7 @@ func handleHTMLAttributes(s *state) error {
 		case isLegalHTMLAttributeValueUnquoted(p):
 			err = inUnquotedAttributeValue(s)
 		default:
-			err = fmt.Errorf("Got some weird rune that’s starting an HTML attribute value: «%s» (%U)", string(p), p)
+			err = fmt.Errorf("got some weird rune that’s starting an HTML attribute value: «%s» (%U)", string(p), p)
 		}
 	}
 	return err
