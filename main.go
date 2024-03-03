@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"unicode"
@@ -783,7 +782,7 @@ func main() {
 		}
 	}
 
-	whenceContents, err := ioutil.ReadAll(whence)
+	whenceContents, err := io.ReadAll(whence)
 	if err != nil {
 		log.Fatalln("Something went wrong when reading input: ", err)
 	}
