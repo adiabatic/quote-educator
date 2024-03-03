@@ -373,7 +373,7 @@ func inDoubleQuotes(s *state) error {
 func atSingleQuote(s *state) error {
 	r := s.mustReadRune()
 	if !(r == '\'' || r == '‘') {
-		return fmt.Errorf("Expecting a single quote, either curly or straight. got: «%s» (%U)", string(r), r)
+		return fmt.Errorf("expecting a single quote, either curly or straight. got: «%s» (%U)", string(r), r)
 	}
 
 	if s.previousRuneMatches(unicode.IsLetter) {
@@ -430,7 +430,7 @@ func inSingleQuotes(s *state) error {
 func atHyphen(s *state) error {
 	r := s.mustReadRune()
 	if r != '-' {
-		return fmt.Errorf("Expecting a hyphen. got: «%s» (%U)", string(r), r)
+		return fmt.Errorf("expecting a hyphen. got: «%s» (%U)", string(r), r)
 	}
 
 	if s.currentOffset() == 1 && s.PeekEquals("--") {
