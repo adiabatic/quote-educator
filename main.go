@@ -857,11 +857,8 @@ func isLegalHTMLAttributeNameRune(r rune) bool {
 			{Lo: 0x10fffe, Hi: 0x10ffff, Stride: 1},
 		},
 	}
-	if unicode.In(r, &table) {
-		return false
-	}
 
-	return true
+	return !unicode.In(r, &table)
 }
 
 func isLegalHTMLAttributeValueUnquoted(r rune) bool {
