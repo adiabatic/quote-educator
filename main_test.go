@@ -40,6 +40,9 @@ func TestStrings(t *testing.T) {
 		{"hello\n", "hello\n"},
 		{"hello\n\n", "hello\n\n"},
 
+		// Don’t swallow trailing spaces, either
+		{"I'd ", "I’d "},
+
 		// Backslashy things
 		{
 			"Some Europeans use \\` instead of ' when they're typing in English.",
