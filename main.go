@@ -751,6 +751,7 @@ func main() {
 	var whither = os.Stdout
 
 	rewriteInPlace := flag.Bool("w", false, "write result to (source) file instead of stdout")
+	addExtraNewline := flag.Bool("n", false, "add an extra newline at the end")
 	showHelp := flag.Bool("h", false, "Show help")
 
 	flag.Parse()
@@ -803,6 +804,14 @@ func main() {
 	if err != nil {
 		log.Printf("%v bytes written before an error occurred: %v", N, err)
 		os.Exit(1)
+	}
+
+	if addExtraNewline != nil && *addExtraNewline {
+		n, err := whither.WriteString("\n")
+		if n != 1 || err != nil {
+			log.Printf("Could not slap on one final newline. Error, if any: %v", err)
+		}
+
 	}
 
 	// stdout doesn’t like being synced, so don’t do it
