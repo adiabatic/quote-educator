@@ -36,6 +36,10 @@ func TestStrings(t *testing.T) {
 		{" ", " "},
 		{"hello", "hello"},
 
+		// Don’t swallow trailing newlines
+		{"hello\n", "hello\n"},
+		{"hello\n\n", "hello\n\n"},
+
 		// Backslashy things
 		{
 			"Some Europeans use \\` instead of ' when they're typing in English.",
