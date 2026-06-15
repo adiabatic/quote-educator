@@ -763,6 +763,9 @@ func main() {
 		fmt.Fprintln(w, "By default, reads Markdown from stdin and writes the educated result to stdout.")
 		fmt.Fprintln(w, "With -w, reads the given file and rewrites it in place instead.")
 		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Idempotent: running the tool twice produces the same output as running it once,")
+		fmt.Fprintln(w, "since already-curly quotes are left alone. It is safe to re-run.")
+		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Flags:")
 		flag.PrintDefaults()
 	}
