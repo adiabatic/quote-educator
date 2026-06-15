@@ -48,6 +48,7 @@ func newState(whence *bytes.Reader) (state, error) {
 
 	s.whatDo['-'] = atHyphen
 
+	s.whatDo['['] = atLeftBracket
 	s.whatDo[']'] = atRightBracket
 
 	s.whatDo['`'] = atBacktick
@@ -451,6 +452,226 @@ func inYAMLFrontMatter(s *state) error {
 	return s.AdvanceThrough("\n---\n") // Just don’t do anything
 }
 
+// atLineStart reports whether the output buffer currently sits at the start of a
+// line, allowing up to three spaces of indentation (as CommonMark does before a
+// link reference definition). It inspects what has already been written, so call
+// it before writing the rune under consideration.
+func (s *state) atLineStart() bool {
+	bs := s.w.Bytes()
+	for spaces := 0; ; {
+		r, size := utf8.DecodeLastRune(bs)
+		switch {
+		case size == 0:
+			return true // beginning of output
+		case r == '\n':
+			return true
+		case r == ' ' && spaces < 3:
+			spaces++
+			bs = bs[:len(bs)-size]
+		default:
+			return false
+		}
+	}
+}
+
+// looksLikeReferenceDefinition reports whether the text just past the current
+// offset — which sits right after a [ that began a line — is a CommonMark link
+// reference definition: a non-empty label closed by ]: and followed, on the same
+// line, by a real destination (and an optional title). It does not consume input.
+//
+// The destination check matters: without it, any line starting like [label]: —
+// a pandoc footnote ([^1]: prose), a [speaker]: transcript line, an unterminated
+// quote — would be mistaken for a definition and have its prose quotes left
+// straight, or worse, orphan a quote span opened on an earlier line. We only
+// suppress curling on lines that really are definitions.
+func (s *state) looksLikeReferenceDefinition() bool {
+	const maxScan = 4096 // labels and destinations are short; the line ends fast
+	buf := make([]byte, maxScan)
+	n, _ := s.r.ReadAt(buf, s.currentOffset())
+	buf = buf[:n]
+
+	// Locate the label's closing ], honoring backslash escapes, refusing to cross
+	// a line break, and requiring at least one non-whitespace byte in the label.
+	labelHasContent := false
+	i := 0
+	for ; i < len(buf); i++ {
+		switch buf[i] {
+		case '\\':
+			i++ // also skip the escaped byte
+			labelHasContent = true
+			continue
+		case '\n':
+			return false
+		case ']':
+			// fall through to the break below
+		default:
+			if !isASCIIWhitespace(rune(buf[i])) {
+				labelHasContent = true
+			}
+			continue
+		}
+		break
+	}
+	if i >= len(buf) || buf[i] != ']' || !labelHasContent {
+		return false
+	}
+	i++ // past the ]
+
+	// The ] must be immediately followed by :.
+	if i >= len(buf) || buf[i] != ':' {
+		return false
+	}
+	i++ // past the :
+
+	// Whatever remains on this line must parse as a destination and optional title.
+	rest := buf[i:]
+	if nl := bytes.IndexByte(rest, '\n'); nl >= 0 {
+		rest = rest[:nl]
+	}
+	return isReferenceTail(rest)
+}
+
+// isReferenceTail reports whether line — the text after a [label]: on a single
+// line, with any trailing line break removed — is a well-formed link reference
+// definition tail: optional whitespace, a non-empty destination, then an optional
+// whitespace-separated title, then only trailing whitespace.
+func isReferenceTail(line []byte) bool {
+	i := skipASCIIWhitespaceBytes(line, 0)
+	if i == len(line) {
+		return false // a definition must have a destination
+	}
+
+	if line[i] == '<' {
+		// An angle-bracketed destination runs to the matching >, with no < or line
+		// break inside; a backslash escapes the next byte.
+		i++
+		closed := false
+		for i < len(line) && !closed {
+			switch line[i] {
+			case '\\':
+				i += 2
+			case '<':
+				return false
+			case '>':
+				i++
+				closed = true
+			default:
+				i++
+			}
+		}
+		if !closed {
+			return false
+		}
+	} else {
+		// A bare destination is a non-empty run of non-whitespace.
+		start := i
+		for i < len(line) && !isASCIIWhitespace(rune(line[i])) {
+			if line[i] == '\\' && i+1 < len(line) {
+				i += 2
+				continue
+			}
+			i++
+		}
+		if i == start {
+			return false
+		}
+	}
+
+	// With no title, only trailing whitespace may follow the destination.
+	rest := skipASCIIWhitespaceBytes(line, i)
+	if rest == len(line) {
+		return true
+	}
+	if rest == i {
+		return false // a title must be set off from the destination by whitespace
+	}
+
+	// A title is delimited by "...", '...', or (...), with backslash escapes.
+	var closer byte
+	switch line[rest] {
+	case '"':
+		closer = '"'
+	case '\'':
+		closer = '\''
+	case '(':
+		closer = ')'
+	default:
+		return false
+	}
+	for j := rest + 1; j < len(line); j++ {
+		switch line[j] {
+		case '\\':
+			j++ // also skip the escaped byte
+		case closer:
+			return skipASCIIWhitespaceBytes(line, j+1) == len(line)
+		}
+	}
+	return false // unterminated title
+}
+
+func skipASCIIWhitespaceBytes(b []byte, i int) int {
+	for i < len(b) && isASCIIWhitespace(rune(b[i])) {
+		i++
+	}
+	return i
+}
+
+// atLeftBracket reads an assumed-to-exist [. At the start of a line it may begin a
+// CommonMark link reference definition — [label]: destination — whose URL must not
+// have its quotes curled, just like an inline-link destination. When it does,
+// inReferenceDefinition copies the rest of the line through untouched. A [ anywhere
+// else (inline-link text, a [1] footnote marker, ordinary prose) is left to normal
+// processing, which still curls the link text and lets atRightBracket guard any
+// inline ](url) destination.
+func atLeftBracket(s *state) error {
+	r := s.mustReadRune()
+	if r != '[' {
+		return fmt.Errorf("expecting a left bracket ([). got: «%s» (%U)", string(r), r)
+	}
+
+	if s.atLineStart() && s.looksLikeReferenceDefinition() {
+		s.writeRune(r)
+		return inReferenceDefinition(s)
+	}
+
+	return s.writeRune(r)
+}
+
+// inReferenceDefinition copies a link reference definition through without curling
+// any quotes. The opening [ has already been written; this copies the label, its
+// closing ], the : that follows, and the rest of the line — destination and any
+// title — verbatim. Curling a quote in the destination would silently break the
+// link, and a curled quote around a title would stop CommonMark from recognizing
+// it, so the whole definition line is left alone. (A title carried onto a following
+// line is out of scope and gets educated normally.)
+//
+// When it returns, the next rune to be read is the line-ending \n (or the input is
+// exhausted).
+func inReferenceDefinition(s *state) error {
+	// Copy the label through its closing ]. looksLikeReferenceDefinition already
+	// confirmed a ] (immediately followed by :) lies ahead on this line.
+	for {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+		s.writeRune(r)
+
+		if r == '\\' {
+			if err := s.AdvanceBy(1); err != nil {
+				return err
+			}
+			continue
+		}
+		if r == ']' {
+			break
+		}
+	}
+
+	// Copy the : and the destination (and any title) to the end of the line.
+	return s.AdvanceUntil("\n")
+}
+
 // atRightBracket reads an assumed-to-exist ]. If the ] is immediately followed by a (, it begins a Markdown inline-link destination like ](https://example.com), so it hands off to inLinkDestination to copy the URL (and any title) through untouched. Curling a quote inside a URL silently breaks the link, so we never do it. A bare ] not followed by ( is ordinary text.
 //
 // We treat any ]( as a link destination without checking for a matching opening [, mirroring the cheap heuristics elsewhere here (any ` starts a code span, any <letter an HTML tag). The cost is that a stray ]( in prose leaves its parenthesized quotes straight; that is rare and self-limited to the matching ).
@@ -836,9 +1057,9 @@ Scope: the tool is Markdown-aware and does NOT alter quotes inside:
   • inline code spans (` + "`like this`" + `)
   • fenced code blocks (` + "``` ... ```" + `)
   • inline-link destinations, e.g. the URL in ](http://example.com/?q="x")
+  • reference-style link definitions, e.g. [ref]: http://example.com/?q="x"
+    (the whole definition line is left alone, including any title)
   • autolinks, e.g. <http://example.com/?q="x">
-Note that quotes in a reference-style link definition’s URL
-(` + "`[ref]: http://example.com/?q=\"x\"`" + `) are NOT yet protected.
 
 Exit codes:
   0  success (with --check, the input is already educated)

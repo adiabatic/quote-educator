@@ -186,6 +186,55 @@ var rows = []Row{
 		`I’d say [1] is “fine”.`,
 	},
 
+	// Don’t curl quotes inside a reference-style link definition’s URL
+	{
+		`[ref]: http://example.com/?q="x"` + "\n",
+		`[ref]: http://example.com/?q="x"` + "\n",
+	},
+
+	// …but prose around the definition still curls
+	{
+		"It's here.\n\n" + `[ref]: http://example.com/?q="x"` + "\n",
+		"It’s here.\n\n" + `[ref]: http://example.com/?q="x"` + "\n",
+	},
+
+	// A reference definition’s angle-bracketed destination is left alone too
+	{
+		`[ref]: <http://example.com/?q="x">` + "\n",
+		`[ref]: <http://example.com/?q="x">` + "\n",
+	},
+
+	// A reference definition’s title isn’t curled either
+	{
+		`[ref]: http://example.com "the \"best\" title"` + "\n",
+		`[ref]: http://example.com "the \"best\" title"` + "\n",
+	},
+
+	// A [label]: that isn’t at the start of a line is ordinary prose
+	{
+		`See [aside]: "really"?`,
+		`See [aside]: “really”?`,
+	},
+
+	// A line that only looks like a definition — no real destination, the trailing
+	// “.” spoils the would-be title — is ordinary prose and still curls
+	{
+		`[note]: see "this".`,
+		`[note]: see “this”.`,
+	},
+
+	// A pandoc-style footnote definition is prose, not a link destination
+	{
+		`[^1]: She said "hi" today.` + "\n",
+		`[^1]: She said “hi” today.` + "\n",
+	},
+
+	// A closing quote that lands on a definition-looking line isn’t orphaned
+	{
+		`"a` + "\n" + `[x]: b" c` + "\n",
+		`“a` + "\n" + `[x]: b” c` + "\n",
+	},
+
 	// Don’t curl quotes inside an autolink
 	{
 		`Visit <http://example.com/?q="x"> today.`,
