@@ -750,14 +750,27 @@ func main() {
 	var whence io.Reader = os.Stdin
 	var whither = os.Stdout
 
-	rewriteInPlace := flag.Bool("w", false, "write result to (source) file instead of stdout")
+	rewriteInPlace := flag.Bool("w", false, "rewrite the source file in place instead of writing to stdout (requires exactly one file argument)")
 	addExtraNewline := flag.Bool("n", false, "add an extra newline at the end")
 	showHelp := flag.Bool("h", false, "Show help")
+
+	flag.Usage = func() {
+		w := flag.CommandLine.Output()
+		fmt.Fprintln(w, "Educates straight ASCII quotes (' \") into typographic curly quotes (‘ ’ “ ”) in Markdown text.")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Usage: quote-educator [flags] [file]")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "By default, reads Markdown from stdin and writes the educated result to stdout.")
+		fmt.Fprintln(w, "With -w, reads the given file and rewrites it in place instead.")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Flags:")
+		flag.PrintDefaults()
+	}
 
 	flag.Parse()
 
 	if showHelp != nil && *showHelp {
-		flag.PrintDefaults()
+		flag.Usage()
 		os.Exit(0)
 	}
 
