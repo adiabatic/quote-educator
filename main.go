@@ -774,7 +774,13 @@ Scope: the tool is Markdown-aware and does NOT alter quotes inside:
   • fenced code blocks (` + "``` ... ```" + `)
 It currently DOES, however, convert quotes inside link/URL destinations such as
   ](http://example.com/?q="x")
-even though it shouldn’t. This is a known bug, not intended behavior.`
+even though it shouldn’t. This is a known bug, not intended behavior.
+
+Exit codes:
+  0  success (with --check, the input is already educated)
+  1  --check only: the input is not yet educated; running without --check
+     would change it
+  2  error: bad usage, unreadable input, or unwritable output`
 
 const examples = `  # Educate text piped in on stdin, writing the result to stdout
   echo 'He said "hi" to the world.' | quote-educator
@@ -790,6 +796,16 @@ const examples = `  # Educate text piped in on stdin, writing the result to stdo
 
   # Same check on stdin
   cat README.md | quote-educator --check`
+
+// Exit codes follow the diff(1)/grep(1) convention: 0 means success, 1 is
+// reserved for --check reporting that changes are pending, and 2 means an
+// error occurred. Keeping changes-pending (1) distinct from errors (2) lets
+// --check callers tell “not yet educated” apart from “the tool broke”.
+const (
+	exitOK      = 0 // success; with --check, the input is already educated
+	exitChanges = 1 // --check only: educating would change the input
+	exitError   = 2 // bad usage, unreadable input, or unwritable output
+)
 
 func main() {
 	var (
@@ -814,10 +830,10 @@ func main() {
 	flags := rootCmd.Flags()
 	flags.BoolVarP(&rewriteInPlace, "rewrite-in-place", "w", false, "rewrite the source file in place instead of writing to stdout (requires exactly one file argument)")
 	flags.BoolVarP(&addExtraNewline, "add-newline", "n", false, "add an extra newline at the end")
-	flags.BoolVar(&checkOnly, "check", false, "write nothing; exit 0 if input is already educated, 1 if it would change")
+	flags.BoolVar(&checkOnly, "check", false, "write nothing; exit 0 if input is already educated, 1 if it would change, 2 on error")
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(2)
+		os.Exit(exitError)
 	}
 }
 
@@ -828,7 +844,7 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 	if checkOnly {
 		if addExtraNewline {
 			log.Println("--check and -n are mutually exclusive: --check writes nothing, so there is nothing to add a newline to")
-			os.Exit(5)
+			os.Exit(exitError)
 		}
 		switch len(args) {
 		case 0:
@@ -837,28 +853,30 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 			f, err := os.Open(args[0])
 			if err != nil {
 				log.Printf("Could not open file named “%s”: %v\n", args[0], err)
-				os.Exit(4)
+				os.Exit(exitError)
 			}
 			defer f.Close()
 			whence = f
 		default:
 			log.Println("Must specify at most one file with --check")
-			os.Exit(3)
+			os.Exit(exitError)
 		}
 
 		original, err := io.ReadAll(whence)
 		if err != nil {
-			log.Fatalln("Something went wrong when reading input: ", err)
+			log.Println("Something went wrong when reading input: ", err)
+			os.Exit(exitError)
 		}
 
 		changed, err := WouldChange(original)
 		if err != nil {
-			log.Fatalln("Something went wrong while educating: ", err)
+			log.Println("Something went wrong while educating: ", err)
+			os.Exit(exitError)
 		}
 		if changed {
-			os.Exit(1)
+			os.Exit(exitChanges)
 		}
-		os.Exit(0)
+		os.Exit(exitOK)
 	}
 
 	continueRewriteThings := false
@@ -866,12 +884,12 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 		switch len(args) {
 		case 0:
 			log.Println("Must specify a file to overwrite with -w")
-			os.Exit(2)
+			os.Exit(exitError)
 		case 1:
 			// continue
 		default:
 			log.Println("Must specify only one file to overwrite with -w")
-			os.Exit(3)
+			os.Exit(exitError)
 		}
 
 		continueRewriteThings = true
@@ -879,13 +897,14 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 		whence, err = os.Open(args[0])
 		if err != nil {
 			log.Printf("Could not open file named “%s” for both reading and writing: %v\n", args[0], err)
-			os.Exit(4)
+			os.Exit(exitError)
 		}
 	}
 
 	whenceContents, err := io.ReadAll(whence)
 	if err != nil {
-		log.Fatalln("Something went wrong when reading input: ", err)
+		log.Println("Something went wrong when reading input: ", err)
+		os.Exit(exitError)
 	}
 
 	whenceReader := bytes.NewReader(whenceContents)
@@ -897,7 +916,7 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 		whither, err = os.OpenFile(args[0], os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Printf("Couldn’t open file «%s» for writing: %v", args[0], err)
-			os.Exit(4)
+			os.Exit(exitError)
 		}
 
 	}
@@ -905,15 +924,15 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 	N, err := Educate(whither, whenceReader)
 	if err != nil {
 		log.Printf("%v bytes written before an error occurred: %v", N, err)
-		os.Exit(1)
+		os.Exit(exitError)
 	}
 
 	if addExtraNewline {
 		n, err := whither.WriteString("\n")
 		if n != 1 || err != nil {
 			log.Printf("Could not slap on one final newline. Error, if any: %v", err)
+			os.Exit(exitError)
 		}
-
 	}
 
 	// stdout doesn’t like being synced, so don’t do it
@@ -921,7 +940,7 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 		err = whither.Sync()
 		if err != nil {
 			log.Printf("couldn’t flush to destination: %v", err)
-			os.Exit(2)
+			os.Exit(exitError)
 		}
 	}
 }
