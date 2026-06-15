@@ -776,6 +776,21 @@ It currently DOES, however, convert quotes inside link/URL destinations such as
   ](http://example.com/?q="x")
 even though it shouldn’t. This is a known bug, not intended behavior.`
 
+const examples = `  # Educate text piped in on stdin, writing the result to stdout
+  echo 'He said "hi" to the world.' | quote-educator
+
+  # Educate a file and print the result to stdout (file is left unchanged)
+  quote-educator < README.md
+
+  # Rewrite a single file in place (file arguments are only read with -w or --check)
+  quote-educator -w README.md
+
+  # Exit 0 if a file is already educated, 1 if running the tool would change it
+  quote-educator --check README.md
+
+  # Same check on stdin
+  cat README.md | quote-educator --check`
+
 func main() {
 	var (
 		rewriteInPlace  bool
@@ -787,6 +802,7 @@ func main() {
 		Use:           "quote-educator [flags] [file]",
 		Short:         "Educate straight ASCII quotes into typographic curly quotes in Markdown text.",
 		Long:          longHelp,
+		Example:       examples,
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
