@@ -5,13 +5,14 @@ package main
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/spf13/cobra"
 )
 
 // A state struct contains information that the parser needs to keep track of.
@@ -756,61 +757,70 @@ func WouldChange(src []byte) (bool, error) {
 	return !bytes.Equal(src, educated.Bytes()), nil
 }
 
+const longHelp = `Educates straight ASCII quotes (' ") into typographic curly quotes (‘ ’ “ ”) in Markdown text.
+
+By default, reads Markdown from stdin and writes the educated result to stdout.
+With -w, reads the given file and rewrites it in place instead.
+With --check, reads stdin (or the given file) and writes nothing; it exits 0 if
+the input is already educated and 1 if running the tool would change it.
+(--check and -n are mutually exclusive.)
+
+Idempotent: running the tool twice produces the same output as running it once,
+since already-curly quotes are left alone. It is safe to re-run.
+
+Scope: the tool is Markdown-aware and does NOT alter quotes inside:
+  • YAML frontmatter (between leading --- fences)
+  • inline code spans (` + "`like this`" + `)
+  • fenced code blocks (` + "``` ... ```" + `)
+It currently DOES, however, convert quotes inside link/URL destinations such as
+  ](http://example.com/?q="x")
+even though it shouldn’t. This is a known bug, not intended behavior.`
+
 func main() {
+	var (
+		rewriteInPlace  bool
+		addExtraNewline bool
+		checkOnly       bool
+	)
+
+	rootCmd := &cobra.Command{
+		Use:           "quote-educator [flags] [file]",
+		Short:         "Educate straight ASCII quotes into typographic curly quotes in Markdown text.",
+		Long:          longHelp,
+		Args:          cobra.ArbitraryArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			run(args, rewriteInPlace, addExtraNewline, checkOnly)
+		},
+	}
+
+	flags := rootCmd.Flags()
+	flags.BoolVarP(&rewriteInPlace, "rewrite-in-place", "w", false, "rewrite the source file in place instead of writing to stdout (requires exactly one file argument)")
+	flags.BoolVarP(&addExtraNewline, "add-newline", "n", false, "add an extra newline at the end")
+	flags.BoolVar(&checkOnly, "check", false, "write nothing; exit 0 if input is already educated, 1 if it would change")
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(2)
+	}
+}
+
+func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 	var whence io.Reader = os.Stdin
 	var whither = os.Stdout
 
-	rewriteInPlace := flag.Bool("w", false, "rewrite the source file in place instead of writing to stdout (requires exactly one file argument)")
-	addExtraNewline := flag.Bool("n", false, "add an extra newline at the end")
-	checkOnly := flag.Bool("check", false, "write nothing; exit 0 if input is already educated, 1 if it would change")
-	showHelp := flag.Bool("h", false, "Show help")
-
-	flag.Usage = func() {
-		w := flag.CommandLine.Output()
-		fmt.Fprintln(w, "Educates straight ASCII quotes (' \") into typographic curly quotes (‘ ’ “ ”) in Markdown text.")
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Usage: quote-educator [flags] [file]")
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "By default, reads Markdown from stdin and writes the educated result to stdout.")
-		fmt.Fprintln(w, "With -w, reads the given file and rewrites it in place instead.")
-		fmt.Fprintln(w, "With --check, reads stdin (or the given file) and writes nothing; it exits 0 if")
-		fmt.Fprintln(w, "the input is already educated and 1 if running the tool would change it.")
-		fmt.Fprintln(w, "(--check and -n are mutually exclusive.)")
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Idempotent: running the tool twice produces the same output as running it once,")
-		fmt.Fprintln(w, "since already-curly quotes are left alone. It is safe to re-run.")
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Scope: the tool is Markdown-aware and does NOT alter quotes inside:")
-		fmt.Fprintln(w, "  • YAML frontmatter (between leading --- fences)")
-		fmt.Fprintln(w, "  • inline code spans (`like this`)")
-		fmt.Fprintln(w, "  • fenced code blocks (``` ... ```)")
-		fmt.Fprintln(w, "It currently DOES, however, convert quotes inside link/URL destinations such as")
-		fmt.Fprintln(w, "  ](http://example.com/?q=\"x\")")
-		fmt.Fprintln(w, "even though it shouldn’t. This is a known bug, not intended behavior.")
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Flags:")
-		flag.PrintDefaults()
-	}
-
-	flag.Parse()
-
-	if showHelp != nil && *showHelp {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	if checkOnly != nil && *checkOnly {
-		if addExtraNewline != nil && *addExtraNewline {
+	if checkOnly {
+		if addExtraNewline {
 			log.Println("--check and -n are mutually exclusive: --check writes nothing, so there is nothing to add a newline to")
 			os.Exit(5)
 		}
-		switch len(flag.Args()) {
+		switch len(args) {
 		case 0:
 			// read from stdin
 		case 1:
-			f, err := os.Open(flag.Args()[0])
+			f, err := os.Open(args[0])
 			if err != nil {
-				log.Printf("Could not open file named “%s”: %v\n", flag.Args()[0], err)
+				log.Printf("Could not open file named “%s”: %v\n", args[0], err)
 				os.Exit(4)
 			}
 			defer f.Close()
@@ -836,8 +846,8 @@ func main() {
 	}
 
 	continueRewriteThings := false
-	if rewriteInPlace != nil && *rewriteInPlace {
-		switch len(flag.Args()) {
+	if rewriteInPlace {
+		switch len(args) {
 		case 0:
 			log.Println("Must specify a file to overwrite with -w")
 			os.Exit(2)
@@ -850,9 +860,9 @@ func main() {
 
 		continueRewriteThings = true
 		var err error
-		whence, err = os.Open(flag.Args()[0])
+		whence, err = os.Open(args[0])
 		if err != nil {
-			log.Printf("Could not open file named “%s” for both reading and writing: %v\n", flag.Args()[0], err)
+			log.Printf("Could not open file named “%s” for both reading and writing: %v\n", args[0], err)
 			os.Exit(4)
 		}
 	}
@@ -867,9 +877,9 @@ func main() {
 	if continueRewriteThings {
 		// now that we’ve got the input all slurped up, let’s set up the out piping
 
-		whither, err = os.OpenFile(flag.Args()[0], os.O_WRONLY|os.O_TRUNC, 0755) // BUG(adiabatic): cargo-culting the “0755”; I don’t understand masks
+		whither, err = os.OpenFile(args[0], os.O_WRONLY|os.O_TRUNC, 0755) // BUG(adiabatic): cargo-culting the “0755”; I don’t understand masks
 		if err != nil {
-			log.Printf("Couldn’t open file «%s»: %s", flag.Args()[0], err)
+			log.Printf("Couldn’t open file «%s»: %s", args[0], err)
 		}
 
 	}
@@ -880,7 +890,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if addExtraNewline != nil && *addExtraNewline {
+	if addExtraNewline {
 		n, err := whither.WriteString("\n")
 		if n != 1 || err != nil {
 			log.Printf("Could not slap on one final newline. Error, if any: %v", err)
