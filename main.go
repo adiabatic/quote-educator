@@ -746,12 +746,23 @@ func Educate(out io.Writer, in *bytes.Reader) (written int64, err error) {
 	return s.WriteTo(out)
 }
 
+// WouldChange reports whether educating src would alter it — the predicate
+// behind --check. It returns true when src isn’t already educated.
+func WouldChange(src []byte) (bool, error) {
+	var educated bytes.Buffer
+	if _, err := Educate(&educated, bytes.NewReader(src)); err != nil {
+		return false, err
+	}
+	return !bytes.Equal(src, educated.Bytes()), nil
+}
+
 func main() {
 	var whence io.Reader = os.Stdin
 	var whither = os.Stdout
 
 	rewriteInPlace := flag.Bool("w", false, "rewrite the source file in place instead of writing to stdout (requires exactly one file argument)")
 	addExtraNewline := flag.Bool("n", false, "add an extra newline at the end")
+	checkOnly := flag.Bool("check", false, "write nothing; exit 0 if input is already educated, 1 if it would change")
 	showHelp := flag.Bool("h", false, "Show help")
 
 	flag.Usage = func() {
@@ -762,6 +773,9 @@ func main() {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "By default, reads Markdown from stdin and writes the educated result to stdout.")
 		fmt.Fprintln(w, "With -w, reads the given file and rewrites it in place instead.")
+		fmt.Fprintln(w, "With --check, reads stdin (or the given file) and writes nothing; it exits 0 if")
+		fmt.Fprintln(w, "the input is already educated and 1 if running the tool would change it.")
+		fmt.Fprintln(w, "(--check and -n are mutually exclusive.)")
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Idempotent: running the tool twice produces the same output as running it once,")
 		fmt.Fprintln(w, "since already-curly quotes are left alone. It is safe to re-run.")
@@ -782,6 +796,42 @@ func main() {
 
 	if showHelp != nil && *showHelp {
 		flag.Usage()
+		os.Exit(0)
+	}
+
+	if checkOnly != nil && *checkOnly {
+		if addExtraNewline != nil && *addExtraNewline {
+			log.Println("--check and -n are mutually exclusive: --check writes nothing, so there is nothing to add a newline to")
+			os.Exit(5)
+		}
+		switch len(flag.Args()) {
+		case 0:
+			// read from stdin
+		case 1:
+			f, err := os.Open(flag.Args()[0])
+			if err != nil {
+				log.Printf("Could not open file named “%s”: %v\n", flag.Args()[0], err)
+				os.Exit(4)
+			}
+			defer f.Close()
+			whence = f
+		default:
+			log.Println("Must specify at most one file with --check")
+			os.Exit(3)
+		}
+
+		original, err := io.ReadAll(whence)
+		if err != nil {
+			log.Fatalln("Something went wrong when reading input: ", err)
+		}
+
+		changed, err := WouldChange(original)
+		if err != nil {
+			log.Fatalln("Something went wrong while educating: ", err)
+		}
+		if changed {
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 

@@ -212,6 +212,31 @@ func TestStrings(t *testing.T) {
 	}
 }
 
+// TestWouldChange exercises the --check predicate against the shared corpus:
+// every Want is already educated (no change), and every In changes exactly when
+// it differs from its educated form.
+func TestWouldChange(t *testing.T) {
+	for _, row := range rows {
+		t.Run(row.In, func(t *testing.T) {
+			clean, err := quotes.WouldChange([]byte(row.Want))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if clean {
+				t.Errorf("WouldChange(%q) = true; already-educated input must report no change", row.Want)
+			}
+
+			got, err := quotes.WouldChange([]byte(row.In))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := row.In != row.Want; got != want {
+				t.Errorf("WouldChange(%q) = %v; want %v", row.In, got, want)
+			}
+		})
+	}
+}
+
 // TestIdempotent locks in the documented contract that educating already-curly
 // output is a no-op, so re-running the tool is safe. Each row’s Want is the
 // canonical educated form, so feeding it back through Educate must return it
