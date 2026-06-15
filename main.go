@@ -48,6 +48,8 @@ func newState(whence *bytes.Reader) (state, error) {
 
 	s.whatDo['-'] = atHyphen
 
+	s.whatDo[']'] = atRightBracket
+
 	s.whatDo['`'] = atBacktick
 
 	s.whatDo['<'] = atLessThan
@@ -449,6 +451,67 @@ func inYAMLFrontMatter(s *state) error {
 	return s.AdvanceThrough("\n---\n") // Just don’t do anything
 }
 
+// atRightBracket reads an assumed-to-exist ]. If the ] is immediately followed by a (, it begins a Markdown inline-link destination like ](https://example.com), so it hands off to inLinkDestination to copy the URL (and any title) through untouched. Curling a quote inside a URL silently breaks the link, so we never do it. A bare ] not followed by ( is ordinary text.
+//
+// We treat any ]( as a link destination without checking for a matching opening [, mirroring the cheap heuristics elsewhere here (any ` starts a code span, any <letter an HTML tag). The cost is that a stray ]( in prose leaves its parenthesized quotes straight; that is rare and self-limited to the matching ).
+func atRightBracket(s *state) error {
+	r := s.mustReadRune()
+	if r != ']' {
+		return fmt.Errorf("expecting a right bracket (]). got: «%s» (%U)", string(r), r)
+	}
+
+	s.writeRune(r)
+
+	if !s.PeekEquals("(") {
+		return nil
+	}
+
+	s.writeRune(s.mustReadRune()) // the (
+	return inLinkDestination(s)
+}
+
+// inLinkDestination reads and writes the body of a Markdown inline-link destination — everything after the opening ( up to and including the matching ) — without curling any quotes. Parentheses may nest, as CommonMark allows in destinations like ](https://en.wikipedia.org/wiki/Foo_(bar)), so we track depth; a backslash escapes the next rune, so \) does not close the destination.
+//
+// A destination may carry a title set off from the URL by whitespace, e.g. ](url "the title"). A "…" or '…' title can itself contain unescaped parentheses, so we consume it as a quoted span rather than letting those parens skew the depth count. (A (…)-delimited title is just more nested parens, already handled.) The whitespace test is what distinguishes a title’s opening quote from a quote inside the URL, like ](http://example.com/?q="x").
+//
+// When it returns, the next rune to be read will be the one right after the closing ).
+func inLinkDestination(s *state) error {
+	depth := 1
+	var prev rune
+	for {
+		r, err := s.readRune()
+		if err != nil {
+			return err
+		}
+
+		s.writeRune(r)
+
+		switch r {
+		case '\\':
+			r, err = s.readRune()
+			if err != nil {
+				return err
+			}
+			s.writeRune(r)
+		case '"', '\'':
+			if isASCIIWhitespace(prev) {
+				if err := inSpanEndingWithSingleUnescapedRune(s, r); err != nil {
+					return err
+				}
+			}
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return nil
+			}
+		}
+
+		prev = r
+	}
+}
+
 // atBacktick reads an assumed-to-exist `. It then peeks ahead and behind to figure out whether this is the start of a single-backtick code span or a triple-backtick code block.
 func atBacktick(s *state) error {
 	r := s.mustReadRune()
@@ -772,9 +835,10 @@ Scope: the tool is Markdown-aware and does NOT alter quotes inside:
   • YAML frontmatter (between leading --- fences)
   • inline code spans (` + "`like this`" + `)
   • fenced code blocks (` + "``` ... ```" + `)
-It currently DOES, however, convert quotes inside link/URL destinations such as
-  ](http://example.com/?q="x")
-even though it shouldn’t. This is a known bug, not intended behavior.
+  • inline-link destinations, e.g. the URL in ](http://example.com/?q="x")
+  • autolinks, e.g. <http://example.com/?q="x">
+Note that quotes in a reference-style link definition’s URL
+(` + "`[ref]: http://example.com/?q=\"x\"`" + `) are NOT yet protected.
 
 Exit codes:
   0  success (with --check, the input is already educated)

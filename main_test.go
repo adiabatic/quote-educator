@@ -137,6 +137,61 @@ var rows = []Row{
 		"“`\\`ls\\` # I don't know what I'm doing`” was the comment he’d written all those years ago?",
 	},
 
+	// Don’t curl quotes inside an inline link’s URL — it would break the link
+	{
+		`See [the page](http://example.com/?q="x") for more.`,
+		`See [the page](http://example.com/?q="x") for more.`,
+	},
+
+	// …but still curl quotes in the link text and the surrounding prose
+	{
+		`I "love" [this "page"](http://example.com/?q="x"), don't you?`,
+		`I “love” [this “page”](http://example.com/?q="x"), don’t you?`,
+	},
+
+	// A link destination may contain balanced parentheses
+	{
+		`[wiki](https://en.wikipedia.org/wiki/Foo_(bar)) isn't broken.`,
+		`[wiki](https://en.wikipedia.org/wiki/Foo_(bar)) isn’t broken.`,
+	},
+
+	// A link title is left alone, even when it contains parentheses that would
+	// otherwise look like they close the destination early
+	{
+		`See [docs](http://example.com "Smith (2020)") and "after".`,
+		`See [docs](http://example.com "Smith (2020)") and “after”.`,
+	},
+
+	// Escaped quotes inside a link title don’t end it prematurely
+	{
+		`Read [docs](http://example.com "the \"best\" page") now.`,
+		`Read [docs](http://example.com "the \"best\" page") now.`,
+	},
+
+	// A quote in the URL itself (not a title) is still left straight
+	{
+		`Open [it](http://example.com/?q="x" "the title") please.`,
+		`Open [it](http://example.com/?q="x" "the title") please.`,
+	},
+
+	// A link sitting inside an open quote: curl the quote, not the URL
+	{
+		`I "love [x](http://y/?q="z") stuff" here.`,
+		`I “love [x](http://y/?q="z") stuff” here.`,
+	},
+
+	// A bare ] with no following ( is ordinary text
+	{
+		`I'd say [1] is "fine".`,
+		`I’d say [1] is “fine”.`,
+	},
+
+	// Don’t curl quotes inside an autolink
+	{
+		`Visit <http://example.com/?q="x"> today.`,
+		`Visit <http://example.com/?q="x"> today.`,
+	},
+
 	// Handle uninteresting HTML elements sensibly
 	{
 		`"What's it called? Dymaxion margarita?" "Close. <i>Dymondia margaretae</i>."`,
