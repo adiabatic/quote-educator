@@ -877,9 +877,11 @@ func run(args []string, rewriteInPlace, addExtraNewline, checkOnly bool) {
 	if continueRewriteThings {
 		// now that we’ve got the input all slurped up, let’s set up the out piping
 
-		whither, err = os.OpenFile(args[0], os.O_WRONLY|os.O_TRUNC, 0755) // BUG(adiabatic): cargo-culting the “0755”; I don’t understand masks
+		// Mode is ignored without O_CREATE: the file already exists (opened above) and O_TRUNC keeps its mode.
+		whither, err = os.OpenFile(args[0], os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Printf("Couldn’t open file «%s»: %s", args[0], err)
+			log.Printf("Couldn’t open file «%s» for writing: %v", args[0], err)
+			os.Exit(4)
 		}
 
 	}
