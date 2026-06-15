@@ -155,8 +155,7 @@ var rows = []Row{
 		`[wiki](https://en.wikipedia.org/wiki/Foo_(bar)) isn’t broken.`,
 	},
 
-	// A link title is left alone, even when it contains parentheses that would
-	// otherwise look like they close the destination early
+	// A link title is left alone, even when it contains parentheses that would otherwise look like they close the destination early
 	{
 		`See [docs](http://example.com "Smith (2020)") and "after".`,
 		`See [docs](http://example.com "Smith (2020)") and “after”.`,
@@ -216,8 +215,7 @@ var rows = []Row{
 		`See [aside]: “really”?`,
 	},
 
-	// A line that only looks like a definition — no real destination, the trailing
-	// “.” spoils the would-be title — is ordinary prose and still curls
+	// A line that only looks like a definition — no real destination, the trailing “.” spoils the would-be title — is ordinary prose and still curls
 	{
 		`[note]: see "this".`,
 		`[note]: see “this”.`,
@@ -316,9 +314,7 @@ func TestStrings(t *testing.T) {
 	}
 }
 
-// TestWouldChange exercises the --check predicate against the shared corpus:
-// every Want is already educated (no change), and every In changes exactly when
-// it differs from its educated form.
+// TestWouldChange exercises the --check predicate against the shared corpus: every Want is already educated (no change), and every In changes exactly when it differs from its educated form.
 func TestWouldChange(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.In, func(t *testing.T) {
@@ -341,10 +337,7 @@ func TestWouldChange(t *testing.T) {
 	}
 }
 
-// TestIdempotent locks in the documented contract that educating already-curly
-// output is a no-op, so re-running the tool is safe. Each row’s Want is the
-// canonical educated form, so feeding it back through Educate must return it
-// unchanged.
+// TestIdempotent locks in the documented contract that educating already-curly output is a no-op, so re-running the tool is safe. Each row’s Want is the canonical educated form, so feeding it back through Educate must return it unchanged.
 func TestIdempotent(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.Want, func(t *testing.T) {

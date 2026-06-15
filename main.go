@@ -452,10 +452,7 @@ func inYAMLFrontMatter(s *state) error {
 	return s.AdvanceThrough("\n---\n") // Just don’t do anything
 }
 
-// atLineStart reports whether the output buffer currently sits at the start of a
-// line, allowing up to three spaces of indentation (as CommonMark does before a
-// link reference definition). It inspects what has already been written, so call
-// it before writing the rune under consideration.
+// atLineStart reports whether the output buffer currently sits at the start of a line, allowing up to three spaces of indentation (as CommonMark does before a link reference definition). It inspects what has already been written, so call it before writing the rune under consideration.
 func (s *state) atLineStart() bool {
 	bs := s.w.Bytes()
 	for spaces := 0; ; {
@@ -474,24 +471,16 @@ func (s *state) atLineStart() bool {
 	}
 }
 
-// looksLikeReferenceDefinition reports whether the text just past the current
-// offset — which sits right after a [ that began a line — is a CommonMark link
-// reference definition: a non-empty label closed by ]: and followed, on the same
-// line, by a real destination (and an optional title). It does not consume input.
+// looksLikeReferenceDefinition reports whether the text just past the current offset — which sits right after a [ that began a line — is a CommonMark link reference definition: a non-empty label closed by ]: and followed, on the same line, by a real destination (and an optional title). It does not consume input.
 //
-// The destination check matters: without it, any line starting like [label]: —
-// a pandoc footnote ([^1]: prose), a [speaker]: transcript line, an unterminated
-// quote — would be mistaken for a definition and have its prose quotes left
-// straight, or worse, orphan a quote span opened on an earlier line. We only
-// suppress curling on lines that really are definitions.
+// The destination check matters: without it, any line starting like [label]: — a pandoc footnote ([^1]: prose), a [speaker]: transcript line, an unterminated quote — would be mistaken for a definition and have its prose quotes left straight, or worse, orphan a quote span opened on an earlier line. We only suppress curling on lines that really are definitions.
 func (s *state) looksLikeReferenceDefinition() bool {
 	const maxScan = 4096 // labels and destinations are short; the line ends fast
 	buf := make([]byte, maxScan)
 	n, _ := s.r.ReadAt(buf, s.currentOffset())
 	buf = buf[:n]
 
-	// Locate the label's closing ], honoring backslash escapes, refusing to cross
-	// a line break, and requiring at least one non-whitespace byte in the label.
+	// Locate the label's closing ], honoring backslash escapes, refusing to cross a line break, and requiring at least one non-whitespace byte in the label.
 	labelHasContent := false
 	i := 0
 	for ; i < len(buf); i++ {
@@ -531,10 +520,7 @@ func (s *state) looksLikeReferenceDefinition() bool {
 	return isReferenceTail(rest)
 }
 
-// isReferenceTail reports whether line — the text after a [label]: on a single
-// line, with any trailing line break removed — is a well-formed link reference
-// definition tail: optional whitespace, a non-empty destination, then an optional
-// whitespace-separated title, then only trailing whitespace.
+// isReferenceTail reports whether line — the text after a [label]: on a single line, with any trailing line break removed — is a well-formed link reference definition tail: optional whitespace, a non-empty destination, then an optional whitespace-separated title, then only trailing whitespace.
 func isReferenceTail(line []byte) bool {
 	i := skipASCIIWhitespaceBytes(line, 0)
 	if i == len(line) {
@@ -542,8 +528,7 @@ func isReferenceTail(line []byte) bool {
 	}
 
 	if line[i] == '<' {
-		// An angle-bracketed destination runs to the matching >, with no < or line
-		// break inside; a backslash escapes the next byte.
+		// An angle-bracketed destination runs to the matching >, with no < or line break inside; a backslash escapes the next byte.
 		i++
 		closed := false
 		for i < len(line) && !closed {
@@ -616,13 +601,7 @@ func skipASCIIWhitespaceBytes(b []byte, i int) int {
 	return i
 }
 
-// atLeftBracket reads an assumed-to-exist [. At the start of a line it may begin a
-// CommonMark link reference definition — [label]: destination — whose URL must not
-// have its quotes curled, just like an inline-link destination. When it does,
-// inReferenceDefinition copies the rest of the line through untouched. A [ anywhere
-// else (inline-link text, a [1] footnote marker, ordinary prose) is left to normal
-// processing, which still curls the link text and lets atRightBracket guard any
-// inline ](url) destination.
+// atLeftBracket reads an assumed-to-exist [. At the start of a line it may begin a CommonMark link reference definition — [label]: destination — whose URL must not have its quotes curled, just like an inline-link destination. When it does, inReferenceDefinition copies the rest of the line through untouched. A [ anywhere else (inline-link text, a [1] footnote marker, ordinary prose) is left to normal processing, which still curls the link text and lets atRightBracket guard any inline ](url) destination.
 func atLeftBracket(s *state) error {
 	r := s.mustReadRune()
 	if r != '[' {
@@ -637,19 +616,11 @@ func atLeftBracket(s *state) error {
 	return s.writeRune(r)
 }
 
-// inReferenceDefinition copies a link reference definition through without curling
-// any quotes. The opening [ has already been written; this copies the label, its
-// closing ], the : that follows, and the rest of the line — destination and any
-// title — verbatim. Curling a quote in the destination would silently break the
-// link, and a curled quote around a title would stop CommonMark from recognizing
-// it, so the whole definition line is left alone. (A title carried onto a following
-// line is out of scope and gets educated normally.)
+// inReferenceDefinition copies a link reference definition through without curling any quotes. The opening [ has already been written; this copies the label, its closing ], the : that follows, and the rest of the line — destination and any title — verbatim. Curling a quote in the destination would silently break the link, and a curled quote around a title would stop CommonMark from recognizing it, so the whole definition line is left alone. (A title carried onto a following line is out of scope and gets educated normally.)
 //
-// When it returns, the next rune to be read is the line-ending \n (or the input is
-// exhausted).
+// When it returns, the next rune to be read is the line-ending \n (or the input is exhausted).
 func inReferenceDefinition(s *state) error {
-	// Copy the label through its closing ]. looksLikeReferenceDefinition already
-	// confirmed a ] (immediately followed by :) lies ahead on this line.
+	// Copy the label through its closing ]. looksLikeReferenceDefinition already confirmed a ] (immediately followed by :) lies ahead on this line.
 	for {
 		r, err := s.readRune()
 		if err != nil {
@@ -815,9 +786,7 @@ func atLessThan(s *state) error {
 
 // inHTMLStartTagName reads and writes an HTML start tag.
 //
-// When it finishes, the current rune is either
-// the rune right after the tag’s closing >
-// or the first character of the first attribute’s name.
+// When it finishes, the current rune is either the rune right after the tag’s closing > or the first character of the first attribute’s name.
 func inHTMLStartTagName(s *state) error {
 	var p rune
 	var err error
@@ -1031,8 +1000,7 @@ func Educate(out io.Writer, in *bytes.Reader) (written int64, err error) {
 	return s.WriteTo(out)
 }
 
-// WouldChange reports whether educating src would alter it — the predicate
-// behind --check. It returns true when src isn’t already educated.
+// WouldChange reports whether educating src would alter it — the predicate behind --check. It returns true when src isn’t already educated.
 func WouldChange(src []byte) (bool, error) {
 	var educated bytes.Buffer
 	if _, err := Educate(&educated, bytes.NewReader(src)); err != nil {
@@ -1082,10 +1050,7 @@ const examples = `  # Educate text piped in on stdin, writing the result to stdo
   # Same check on stdin
   cat README.md | quote-educator --check`
 
-// Exit codes follow the diff(1)/grep(1) convention: 0 means success, 1 is
-// reserved for --check reporting that changes are pending, and 2 means an
-// error occurred. Keeping changes-pending (1) distinct from errors (2) lets
-// --check callers tell “not yet educated” apart from “the tool broke”.
+// Exit codes follow the diff(1)/grep(1) convention: 0 means success, 1 is reserved for --check reporting that changes are pending, and 2 means an error occurred. Keeping changes-pending (1) distinct from errors (2) lets --check callers tell “not yet educated” apart from “the tool broke”.
 const (
 	exitOK      = 0 // success; with --check, the input is already educated
 	exitChanges = 1 // --check only: educating would change the input
